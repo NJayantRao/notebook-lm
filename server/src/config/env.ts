@@ -4,6 +4,7 @@ dotenv.config();
 
 const ENV = {
   PORT: process.env.PORT || 5000,
+  DATABASE_URL: process.env.DATABASE_URL || "postgresql://admin:admin@localhost:5432/admin",
 };
 
 export { ENV };
