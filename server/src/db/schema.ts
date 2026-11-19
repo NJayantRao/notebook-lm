@@ -1,7 +1,6 @@
 import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
 import { defineRelations } from "drizzle-orm";
 
-
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -74,30 +73,76 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+export const workspace = pgTable(
+  "workspace",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    title: text("title").notNull(),
+
+    description: text("description"),
+
+    icon: text("icon"),
+
+    model: text("model").notNull().default("openai-4o-mini"),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("workspace_userId_idx").on(table.userId)],
+);
+
+
 export const relations = defineRelations(
-  { user, session, account, verification },
+  { user, session, account, verification, workspace },
   (r) => ({
     user: {
       sessions: r.many.session({
         from: r.user.id,
         to: r.session.userId,
       }),
+
       accounts: r.many.account({
         from: r.user.id,
         to: r.account.userId,
       }),
+
+      workspaces: r.many.workspace({
+        from: r.user.id,
+        to: r.workspace.userId,
+      }),
     },
+
     session: {
       user: r.one.user({
         from: r.session.userId,
         to: r.user.id,
       }),
     },
+
     account: {
       user: r.one.user({
         from: r.account.userId,
         to: r.user.id,
       }),
     },
+
+    workspace: {
+      user: r.one.user({
+        from: r.workspace.userId,
+        to: r.user.id,
+      }),
+    },
   }),
 );
+
