@@ -1,9 +1,9 @@
-import { NotFoundError } from "../../../utils/api-error.js";
-import repository from "../repository/workspace.repository.js";
+import { NotFoundError } from "../utils/api-error.js";
+import repository from "../repository/workspaces.repository.js";
 import type {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
-} from "../validators/workspace.validator.js";
+} from "../validators/workspaces.validator.js";
 
 const WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND";
 

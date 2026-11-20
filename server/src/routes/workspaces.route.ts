@@ -1,9 +1,9 @@
 import { Router } from "express";
 
-import { requireAuth } from "../../../middlewares/require-auth.js";
-import AsyncHandler from "../../../utils/async-handler.js";
+import { requireAuth } from "../middlewares/require-auth.js";
+import AsyncHandler from "../utils/async-handler.js";
 
-import controller from "../controllers/workspace.controller.js";
+import controller from "../controllers/workspaces.controller.js";
 
 const router: Router = Router();
 

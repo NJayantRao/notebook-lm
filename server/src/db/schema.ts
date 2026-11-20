@@ -1,5 +1,30 @@
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  index,
+  pgEnum,
+  jsonb,
+  integer,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { defineRelations } from "drizzle-orm";
+
+export const sourceTypeEnum = pgEnum("source_type", [
+  "text",
+  "markdown",
+  "pdf",
+  "website",
+  "yt_url",
+]);
+
+export const sourceStatusEnum = pgEnum("source_status", [
+  "pending",
+  "processing",
+  "failed",
+  "ready",
+]);
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -102,9 +127,83 @@ export const workspace = pgTable(
   (table) => [index("workspace_userId_idx").on(table.userId)],
 );
 
+export const source = pgTable(
+  "source",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+
+    sourceType: sourceTypeEnum("source_type").notNull(),
+
+    title: text("title").notNull(),
+
+    content: text("content"),
+
+    url: text("url"),
+
+    status: sourceStatusEnum("status").notNull().default("pending"),
+
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("source_workspaceId_idx").on(table.workspaceId),
+    index("source_status_idx").on(table.status),
+  ],
+);
+
+export const chunk = pgTable(
+  "chunk",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => source.id, { onDelete: "cascade" }),
+
+    index: integer("index").notNull(),
+
+    content: text("content").notNull(),
+
+    tokenCount: integer("token_count").notNull(),
+
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("chunk_sourceId_idx").on(table.sourceId),
+
+    uniqueIndex("chunk_sourceId_index_unique").on(table.sourceId, table.index),
+  ],
+);
 
 export const relations = defineRelations(
-  { user, session, account, verification, workspace },
+  { user, session, account, verification, workspace, source, chunk },
   (r) => ({
     user: {
       sessions: r.many.session({
@@ -142,7 +241,27 @@ export const relations = defineRelations(
         from: r.workspace.userId,
         to: r.user.id,
       }),
+      sources: r.many.source({
+        from: r.workspace.id,
+        to: r.source.workspaceId,
+      }),
+    },
+    source: {
+      workspace: r.one.workspace({
+        from: r.source.workspaceId,
+        to: r.workspace.id,
+      }),
+
+      chunks: r.many.chunk({
+        from: r.source.id,
+        to: r.chunk.sourceId,
+      }),
+    },
+    chunk: {
+      source: r.one.source({
+        from: r.chunk.sourceId,
+        to: r.source.id,
+      }),
     },
   }),
 );
-

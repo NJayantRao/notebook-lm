@@ -1,14 +1,14 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 
-import ApiResponse from "../../../utils/api-response.js";
-import validate from "../../../utils/validate.js";
+import ApiResponse from "../utils/api-response.js";
+import validate from "../utils/validate.js";
 
-import service from "../services/workspace.service.js";
+import service from "../services/workspaces.service.js";
 import {
   createWorkspaceSchema,
   updateWorkspaceSchema,
-} from "../validators/workspace.validator.js";
+} from "../validators/workspaces.validator.js";
 
 const workspaceIdParamsSchema = z.object({
   workspaceId: z.string().uuid("Invalid workspace id"),

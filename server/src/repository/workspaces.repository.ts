@@ -1,12 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
 
-import { InternalServerError } from "../../../utils/api-error.js";
-import db from "../../../db/index.js";
-import { workspace } from "../../../db/schema.js";
+import { InternalServerError } from "../utils/api-error.js";
+import db from "../db/index.js";
+import { workspace } from "../db/schema.js";
 import type {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
-} from "../validators/workspace.validator.js";
+} from "../validators/workspaces.validator.js";
 
 type Workspace = typeof workspace.$inferSelect;
 
@@ -24,9 +24,7 @@ const findWorkspaceByIdAndUserId = async (
   const [result] = await db
     .select()
     .from(workspace)
-    .where(
-      and(eq(workspace.id, workspaceId), eq(workspace.userId, userId)),
-    )
+    .where(and(eq(workspace.id, workspaceId), eq(workspace.userId, userId)))
     .limit(1);
 
   return result;
@@ -62,9 +60,7 @@ const updateWorkspace = async (
   const [result] = await db
     .update(workspace)
     .set(data)
-    .where(
-      and(eq(workspace.id, workspaceId), eq(workspace.userId, userId)),
-    )
+    .where(and(eq(workspace.id, workspaceId), eq(workspace.userId, userId)))
     .returning();
 
   return result;
@@ -76,9 +72,7 @@ const deleteWorkspace = async (
 ): Promise<Workspace | undefined> => {
   const [result] = await db
     .delete(workspace)
-    .where(
-      and(eq(workspace.id, workspaceId), eq(workspace.userId, userId)),
-    )
+    .where(and(eq(workspace.id, workspaceId), eq(workspace.userId, userId)))
     .returning();
 
   return result;
