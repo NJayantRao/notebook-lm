@@ -20,6 +20,18 @@ export class BadRequestError extends ApiError {
   }
 }
 
+export class PayloadTooLargeError extends ApiError {
+  constructor(message: string, code = "PAYLOAD_TOO_LARGE") {
+    super(413, message, code);
+  }
+}
+
+export class UnsupportedMediaTypeError extends ApiError {
+  constructor(message: string, code = "UNSUPPORTED_MEDIA_TYPE") {
+    super(415, message, code);
+  }
+}
+
 export class UnauthorizedError extends ApiError {
   constructor(message: string, code = "UNAUTHORIZED") {
     super(401, message, code);

@@ -1,6 +1,7 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 
 import ApiResponse from "../utils/api-response.js";
+import { BadRequestError } from "../utils/api-error.js";
 import validate from "../utils/validate.js";
 
 import service from "../services/sources.service.js";
@@ -31,6 +32,36 @@ const createSources = async (req: Request, res: Response) => {
     .json(new ApiResponse(201, "Source created successfully", result));
 };
 
+const validateUploadWorkspace = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  try {
+    validate(workspaceIdParamsSchema, req.params);
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const uploadPdf = async (req: Request, res: Response) => {
+  const { workspaceId } = validate(workspaceIdParamsSchema, req.params);
+  if (!req.file) {
+    throw new BadRequestError("A PDF file is required.", "PDF_REQUIRED");
+  }
+
+  const result = await service.uploadPdfSource(
+    req.user.id,
+    workspaceId,
+    req.file,
+  );
+
+  res
+    .status(201)
+    .json(new ApiResponse(201, "PDF uploaded successfully", result));
+};
+
 const bulkDeleteSources = async (req: Request, res: Response) => {
   const { workspaceId } = validate(workspaceIdParamsSchema, req.params);
   const deletedCount = await service.bulkDeleteSources(req.user.id, workspaceId);
@@ -54,6 +85,8 @@ const deleteSource = async (req: Request, res: Response) => {
 export default {
   listAllSources,
   createSources,
+  validateUploadWorkspace,
+  uploadPdf,
   bulkDeleteSources,
   deleteSource,
 };

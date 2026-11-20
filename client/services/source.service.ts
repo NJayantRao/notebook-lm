@@ -7,6 +7,24 @@ export type CreateWebsiteSourceInput = {
   title?: string;
 };
 
+export async function uploadPdfSource(
+  workspaceId: string,
+  file: File,
+): Promise<Source> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await api.post<ApiEnvelope<Source>>(
+    `/api/workspace/${workspaceId}/upload`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  if (!res.data.data) {
+    throw new Error(res.data.message || "Failed to upload PDF");
+  }
+  return res.data.data;
+}
+
 export type ListSourcesParams = {
   search?: string;
   sourceType?: string;

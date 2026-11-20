@@ -8,6 +8,7 @@ import { WorkspaceGrid } from "@/components/dashboard/workspace-grid";
 import { RecentSources } from "@/components/dashboard/recent-sources";
 import { CreateWorkspaceDialog } from "@/components/dashboard/create-workspace-dialog";
 import { AddWebsiteSourceDialog } from "@/components/dashboard/add-website-source-dialog";
+import { UploadPdfSourceDialog } from "@/components/dashboard/upload-pdf-source-dialog";
 import { useAuthSession } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { listWorkspaces } from "@/services/workspace.service";
@@ -18,6 +19,7 @@ export function DashboardShell() {
   const { data: session } = useAuthSession();
   const [createOpen, setCreateOpen] = useState(false);
   const [addWebsiteOpen, setAddWebsiteOpen] = useState(false);
+  const [uploadPdfOpen, setUploadPdfOpen] = useState(false);
 
   const workspacesQuery = useQuery({
     queryKey: ["workspaces"],
@@ -63,6 +65,7 @@ export function DashboardShell() {
             userName={session?.user?.name}
             onNewWorkspace={() => setCreateOpen(true)}
             onAddWebsite={() => setAddWebsiteOpen(true)}
+            onUploadPdf={() => setUploadPdfOpen(true)}
           />
 
           <main className="flex-1 space-y-8 px-4 py-6 sm:px-6 lg:px-8">
@@ -93,6 +96,11 @@ export function DashboardShell() {
       <AddWebsiteSourceDialog
         open={addWebsiteOpen}
         onOpenChange={setAddWebsiteOpen}
+        workspaces={workspaces}
+      />
+      <UploadPdfSourceDialog
+        open={uploadPdfOpen}
+        onOpenChange={setUploadPdfOpen}
         workspaces={workspaces}
       />
     </div>

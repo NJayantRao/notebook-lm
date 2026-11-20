@@ -1,9 +1,13 @@
 import { NotFoundError } from "../utils/api-error.js";
+import type { Express } from "express";
+import { basename, extname } from "node:path";
 import repository, {
   type SourceFilters,
 } from "../repository/sources.repository.js";
 import workspaceRepository from "../repository/workspaces.repository.js";
 import { scrapeWebsiteByUrl } from "../lib/firecrawl.js";
+import { removeUploadedPdf, verifyPdfFile } from "../lib/multer.js";
+import { extractPdfText } from "../lib/pdf.js";
 import type { CreateSourceInput } from "../validators/sources.validator.js";
 
 const WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND";
@@ -68,6 +72,43 @@ const createSources = async (
   return repository.createSource(workspaceId, input);
 };
 
+const uploadPdfSource = async (
+  userId: string,
+  workspaceId: string,
+  file: Express.Multer.File,
+) => {
+  try {
+    await requireOwnedWorkspace(userId, workspaceId);
+    await verifyPdfFile(file.path);
+    const extracted = await extractPdfText(file.path);
+
+    const originalName = basename(file.originalname);
+    const title = basename(originalName, extname(originalName)).trim();
+
+    return await repository.createSource(workspaceId, {
+      sourceType: "pdf",
+      title: title || "Uploaded PDF",
+      content: extracted.text,
+      status: "ready",
+      metadata: {
+        originalName,
+        storedFileName: file.filename,
+        mimeType: "application/pdf",
+        size: file.size,
+        pageCount: extracted.pageCount,
+      },
+    });
+  } catch (error) {
+    try {
+      await removeUploadedPdf(file.path);
+    } catch (cleanupError) {
+      console.error("Failed to remove an unregistered PDF upload:", cleanupError);
+    }
+
+    throw error;
+  }
+};
+
 const bulkDeleteSources = async (userId: string, workspaceId: string) => {
   await requireOwnedWorkspace(userId, workspaceId);
 
@@ -96,6 +137,7 @@ const deleteSource = async (
 export default {
   listAllSources,
   createSources,
+  uploadPdfSource,
   bulkDeleteSources,
   deleteSource,
 };

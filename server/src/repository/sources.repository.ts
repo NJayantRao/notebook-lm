@@ -9,7 +9,7 @@ type Source = typeof source.$inferSelect;
 type CreateSourceData = {
   sourceType: Source["sourceType"];
   title: string;
-  content: string;
+  content: string | null;
   url?: string | null;
   status?: Source["status"];
   metadata?: Record<string, unknown> | undefined;
