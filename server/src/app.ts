@@ -9,6 +9,8 @@ import conversationRoutes from "./routes/conversations.route.js";
 import { inngest } from "./lib/inngest.js";
 import { serve } from "inngest/express";
 import { indexSourceFunction } from "./functions/index-source.function.js";
+import { refreshUserMemoryFunction } from "./functions/refresh-user-memory.function.js";
+import memoryRoutes from "./routes/memories.route.js";
 
 const app: Express = express();
 
@@ -19,12 +21,16 @@ app.use(express.json());
 
 app.use(
   "/api/inngest",
-  serve({ client: inngest, functions: [indexSourceFunction] })
+  serve({
+    client: inngest,
+    functions: [indexSourceFunction, refreshUserMemoryFunction],
+  })
 );
 
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/workspace/:workspaceId", sourceRoutes);
 app.use("/api/workspace/:workspaceId/conversations", conversationRoutes);
+app.use("/api/memories", memoryRoutes);
 
 app.get("/", (_req, res) => {
   res.send("Hello, World!");

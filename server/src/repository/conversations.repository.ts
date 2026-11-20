@@ -1,7 +1,14 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, lte } from "drizzle-orm";
+import type { Message } from "mem0ai";
 
 import db from "../db/index.js";
-import { conversation, message, source, chunk } from "../db/schema.js";
+import {
+  chunk,
+  conversation,
+  message,
+  source,
+  workspace,
+} from "../db/schema.js";
 import type { ConversationCitation } from "../types/conversation.js";
 import { InternalServerError } from "../utils/api-error.js";
 
@@ -28,6 +35,11 @@ type PersistExchangeInput = {
   userContent: string;
   assistantContent: string;
   sources: ConversationCitation[];
+};
+
+export type PersistedExchange = {
+  conversation: ConversationDetail;
+  userMessageCount: number;
 };
 
 const findReadyChunksByIds = async (
@@ -96,9 +108,44 @@ const findConversationDetail = async (
   return { ...record, messages };
 };
 
+const findConversationMemoryMessages = async (
+  userId: string,
+  conversationId: string,
+  throughUserMessageCount: number
+): Promise<Message[] | undefined> => {
+  const [ownedConversation] = await db
+    .select({ id: conversation.id })
+    .from(conversation)
+    .innerJoin(workspace, eq(conversation.workspaceId, workspace.id))
+    .where(
+      and(eq(conversation.id, conversationId), eq(workspace.userId, userId))
+    )
+    .limit(1);
+
+  if (!ownedConversation) {
+    return undefined;
+  }
+
+  const firstSequence = Math.max(0, (throughUserMessageCount - 16) * 2);
+  const lastSequence = throughUserMessageCount * 2;
+  const messages = await db
+    .select({ role: message.role, content: message.content })
+    .from(message)
+    .where(
+      and(
+        eq(message.conversationId, conversationId),
+        gt(message.sequence, firstSequence),
+        lte(message.sequence, lastSequence)
+      )
+    )
+    .orderBy(asc(message.sequence));
+
+  return messages;
+};
+
 const persistExchange = async (
   input: PersistExchangeInput
-): Promise<ConversationDetail> =>
+): Promise<PersistedExchange> =>
   db.transaction(async (tx) => {
     let activeConversation: ConversationRecord;
     let firstSequence = 1;
@@ -170,6 +217,16 @@ const persistExchange = async (
       throw new InternalServerError("Failed to save conversation messages.");
     }
 
+    const [userMessages] = await tx
+      .select({ count: count() })
+      .from(message)
+      .where(
+        and(
+          eq(message.conversationId, activeConversation.id),
+          eq(message.role, "user")
+        )
+      );
+
     const [updatedConversation] = await tx
       .update(conversation)
       .set({ updatedAt: new Date() })
@@ -181,10 +238,13 @@ const persistExchange = async (
     }
 
     return {
-      ...updatedConversation,
-      messages: savedMessages.sort(
-        (left, right) => left.sequence - right.sequence
-      ),
+      conversation: {
+        ...updatedConversation,
+        messages: savedMessages.sort(
+          (left, right) => left.sequence - right.sequence
+        ),
+      },
+      userMessageCount: userMessages?.count ?? 0,
     };
   });
 
@@ -192,5 +252,6 @@ export default {
   findReadyChunksByIds,
   findConversationsByWorkspaceId,
   findConversationDetail,
+  findConversationMemoryMessages,
   persistExchange,
 };

@@ -11,12 +11,15 @@ import workspaceRepository from "../repository/workspaces.repository.js";
 import { createEmbeddings, generateChatAnswer } from "../lib/openai.js";
 import { querySourceChunkVectors } from "../lib/pinecone.js";
 import { searchWeb } from "../lib/tavily.js";
+import { searchUserMemories } from "../lib/mem0.js";
+import { inngest } from "../lib/inngest.js";
 import type { ConversationCitation } from "../types/conversation.js";
 import type { CreateConversationInput } from "../validators/conversations.validator.js";
 
 const WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND";
 const CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND";
 const TOP_K = 6;
+const MEMORY_REFRESH_INTERVAL = 16;
 
 const formatSourceContext = (sources: ConversationCitation[]): string =>
   sources
@@ -42,13 +45,17 @@ const ensureWorkspaceAccess = async (
 };
 
 const createAnswer = async (
+  userId: string,
   workspaceId: string,
   question: string,
   history: { role: "user" | "assistant"; content: string }[],
   webSearch: boolean
 ): Promise<{ answer: string; sources: ConversationCitation[] }> => {
   if (webSearch) {
-    const response = await searchWeb(question);
+    const [response, userMemories] = await Promise.all([
+      searchWeb(question),
+      searchUserMemories(userId, question),
+    ]);
     const sources: ConversationCitation[] = response.results.map(
       (result, index) => ({
         number: index + 1,
@@ -77,7 +84,8 @@ const createAnswer = async (
       question,
       history.slice(-10),
       sourceContext,
-      "web"
+      "web",
+      userMemories
     );
 
     return { answer, sources };
@@ -142,10 +150,42 @@ const createAnswer = async (
   const answer = await generateChatAnswer(
     question,
     history.slice(-10),
-    formatSourceContext(sources)
+    formatSourceContext(sources),
+    "workspace",
+    await searchUserMemories(userId, question)
   );
 
   return { answer, sources };
+};
+
+const enqueueMemoryRefresh = async (
+  userId: string,
+  conversationId: string,
+  userMessageCount: number
+): Promise<void> => {
+  if (userMessageCount % MEMORY_REFRESH_INTERVAL !== 0) {
+    return;
+  }
+
+  try {
+    await inngest.send({
+      name: "conversation/memory.refresh.requested",
+      data: {
+        userId,
+        conversationId,
+        throughUserMessageCount: userMessageCount,
+      },
+    });
+  } catch (error) {
+    console.error(
+      `Could not queue memory refresh for conversation ${conversationId}:`,
+      error
+    );
+    throw new ServiceUnavailableError(
+      "Your message was saved, but its memory update could not be queued.",
+      "MEMORY_REFRESH_QUEUE_FAILED"
+    );
+  }
 };
 
 const listConversations = async (
@@ -187,19 +227,26 @@ const createConversation = async (
 ): Promise<ConversationDetail> => {
   await ensureWorkspaceAccess(userId, workspaceId);
   const response = await createAnswer(
+    userId,
     workspaceId,
     input.message,
     [],
     input.webSearch
   );
 
-  return conversationsRepository.persistExchange({
+  const persisted = await conversationsRepository.persistExchange({
     workspaceId,
     title: getConversationTitle(input.message),
     userContent: input.message,
     assistantContent: response.answer,
     sources: response.sources,
   });
+  await enqueueMemoryRefresh(
+    userId,
+    persisted.conversation.id,
+    persisted.userMessageCount
+  );
+  return persisted.conversation;
 };
 
 const sendConversationMessage = async (
@@ -218,19 +265,26 @@ const sendConversationMessage = async (
     content: item.content,
   }));
   const response = await createAnswer(
+    userId,
     workspaceId,
     input.message,
     history,
     input.webSearch
   );
 
-  return conversationsRepository.persistExchange({
+  const persisted = await conversationsRepository.persistExchange({
     workspaceId,
     conversationId,
     userContent: input.message,
     assistantContent: response.answer,
     sources: response.sources,
   });
+  await enqueueMemoryRefresh(
+    userId,
+    persisted.conversation.id,
+    persisted.userMessageCount
+  );
+  return persisted.conversation;
 };
 
 export default {

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import { AddMemoryDialog } from "@/components/workspace/add-memory-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +47,7 @@ export function WorkspaceConversation({
   >(null);
   const [draft, setDraft] = useState("");
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [addMemoryOpen, setAddMemoryOpen] = useState(false);
 
   const workspaceQuery = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -131,14 +133,24 @@ export function WorkspaceConversation({
                 Ask questions grounded in indexed workspace sources.
               </p>
             </div>
-            <Button
-              onClick={startNewConversation}
-              disabled={sendMutation.isPending}
-              className="btn-gradient-primary rounded-xl"
-            >
-              <Plus className="mr-1.5 h-4 w-4" />
-              New conversation
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setAddMemoryOpen(true)}
+                className="rounded-xl border-white/10 bg-white/[0.03] hover:bg-white/[0.07]"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Add memory
+              </Button>
+              <Button
+                onClick={startNewConversation}
+                disabled={sendMutation.isPending}
+                className="btn-gradient-primary rounded-xl"
+              >
+                <Plus className="mr-1.5 h-4 w-4" />
+                New conversation
+              </Button>
+            </div>
           </header>
 
           <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -340,6 +352,7 @@ export function WorkspaceConversation({
           </div>
         </div>
       </div>
+      <AddMemoryDialog open={addMemoryOpen} onOpenChange={setAddMemoryOpen} />
     </div>
   );
 }
