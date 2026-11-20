@@ -5,6 +5,9 @@ import corsMiddleware from "./middlewares/cors.js";
 import errorMiddleware from "./middlewares/error-handler.js";
 import workspaceRoutes from "./routes/workspaces.route.js";
 import sourceRoutes from "./routes/sources.route.js";
+import { inngest } from "./lib/inngest.js";
+import { serve } from "inngest/express";
+import { indexSourceFunction } from "./functions/index-source.function.js";
 
 const app: Express = express();
 
@@ -12,6 +15,11 @@ app.use(corsMiddleware);
 app.all("/api/auth/{*any}", toNodeHandler(auth));
 
 app.use(express.json());
+
+app.use(
+  "/api/inngest",
+  serve({ client: inngest, functions: [indexSourceFunction] })
+);
 
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/workspace/:workspaceId", sourceRoutes);

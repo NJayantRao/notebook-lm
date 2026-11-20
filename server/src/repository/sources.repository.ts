@@ -2,9 +2,11 @@ import { and, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 
 import db from "../db/index.js";
 import { source } from "../db/schema.js";
+import type { SourceMetadata } from "../types/source.js";
 import { InternalServerError } from "../utils/api-error.js";
 
 type Source = typeof source.$inferSelect;
+export type SourceRecord = Source;
 
 type CreateSourceData = {
   sourceType: Source["sourceType"];
@@ -12,7 +14,7 @@ type CreateSourceData = {
   content: string | null;
   url?: string | null;
   status?: Source["status"];
-  metadata?: Record<string, unknown> | undefined;
+  metadata?: SourceMetadata | undefined;
 };
 
 export type SourceFilters = {
@@ -77,6 +79,39 @@ const countSourcesByWorkspaceId = async (
   return result?.value ?? 0;
 };
 
+const findSourceById = async (
+  sourceId: string
+): Promise<Source | undefined> => {
+  const [result] = await db
+    .select()
+    .from(source)
+    .where(eq(source.id, sourceId))
+    .limit(1);
+
+  return result;
+};
+
+const updateSourceRecord = async (
+  sourceId: string,
+  update: {
+    status?: Source["status"];
+    metadata?: SourceMetadata;
+  }
+): Promise<boolean> => {
+  const [result] = await db
+    .update(source)
+    .set(update)
+    .where(eq(source.id, sourceId))
+    .returning({ id: source.id });
+
+  return result !== undefined;
+};
+
+const updateSourceStatus = (
+  sourceId: string,
+  status: Source["status"]
+): Promise<boolean> => updateSourceRecord(sourceId, { status });
+
 const createSource = async (
   workspaceId: string,
   data: CreateSourceData
@@ -139,6 +174,9 @@ const deleteSourceByWorkspaceIdAndId = async (
 export default {
   findSourcesByWorkspaceId,
   countSourcesByWorkspaceId,
+  findSourceById,
+  updateSourceRecord,
+  updateSourceStatus,
   createSource,
   createWebsiteSource,
   createYouTubeSource,

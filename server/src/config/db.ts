@@ -8,7 +8,7 @@ async function connectToDb(): Promise<void> {
 
   try {
     await pool.query("SELECT 1");
-    console.log("Database connection established");
+    console.log("✅✅ Database connected successfully");
   } catch (error) {
     console.error("Failed to connect to the database:", error);
     throw error;

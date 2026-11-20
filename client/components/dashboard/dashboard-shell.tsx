@@ -51,6 +51,13 @@ export function DashboardShell() {
       return all.slice(0, 8);
     },
     enabled: !!session && workspacesQuery.isSuccess,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (source) =>
+          source.status === "pending" || source.status === "processing"
+      )
+        ? 3000
+        : false,
   });
 
   const allSources = sourcesQuery.data ?? [];

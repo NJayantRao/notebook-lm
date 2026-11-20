@@ -85,7 +85,7 @@ export function AddWebsiteSourceDialog({
             Add a website
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Scrape a page and save its readable content to a workspace.
+            Scrape a page and index its readable content in a workspace.
           </DialogDescription>
         </DialogHeader>
 

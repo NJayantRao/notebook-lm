@@ -160,6 +160,15 @@ export function RecentSources({
                         <span className="text-white/20">•</span>
                         <span>Added {formatDate(source.createdAt)}</span>
                       </div>
+                      {source.status === "failed" &&
+                        source.metadata.processingError && (
+                          <p
+                            className="mt-1 line-clamp-2 text-xs text-red-300"
+                            title={source.metadata.processingError}
+                          >
+                            {source.metadata.processingError}
+                          </p>
+                        )}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center sm:justify-end">

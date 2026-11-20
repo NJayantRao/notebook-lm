@@ -102,7 +102,8 @@ export function UploadPdfSourceDialog({
             Upload a PDF
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            PDFs are saved locally on the server. Maximum file size: 25 MB.
+            Extract and index PDF text in the background. Maximum file size: 25
+            MB.
           </DialogDescription>
         </DialogHeader>
 

@@ -12,6 +12,21 @@ export type Workspace = {
 export type SourceType = "text" | "markdown" | "pdf" | "website" | "yt_url";
 export type SourceStatus = "pending" | "processing" | "failed" | "ready";
 
+export type SourceMetadata = {
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  publicId?: string;
+  resourceType?: "raw" | "image";
+  importedFrom?: string;
+  videoId?: string;
+  processingError?: string;
+  chunkCount?: number;
+  pageCount?: number;
+  indexedAt?: string;
+  [key: string]: unknown;
+};
+
 export type Source = {
   id: string;
   workspaceId: string;
@@ -20,7 +35,7 @@ export type Source = {
   content: string | null;
   url: string | null;
   status: SourceStatus;
-  metadata: Record<string, unknown>;
+  metadata: SourceMetadata;
   createdAt: string;
   updatedAt: string;
 };

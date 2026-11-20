@@ -10,6 +10,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { defineRelations } from "drizzle-orm";
+import type { SourceMetadata } from "../types/source.js";
 
 export const sourceTypeEnum = pgEnum("source_type", [
   "text",
@@ -148,10 +149,7 @@ export const source = pgTable(
 
     status: sourceStatusEnum("status").notNull().default("pending"),
 
-    metadata: jsonb("metadata")
-      .$type<Record<string, unknown>>()
-      .notNull()
-      .default({}),
+    metadata: jsonb("metadata").$type<SourceMetadata>().notNull().default({}),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
 
