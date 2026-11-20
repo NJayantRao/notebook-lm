@@ -15,6 +15,7 @@ const ENV = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   PINECONE_API_KEY: process.env.PINECONE_API_KEY,
   PINECONE_INDEX: process.env.PINECONE_INDEX,
+  TAVILY_API_KEY: process.env.TAVILY_API_KEY!,
 };
 
 export { ENV };

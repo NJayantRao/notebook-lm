@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ExternalLink,
+  Globe,
   LoaderCircle,
   MessageSquareText,
   Plus,
@@ -44,6 +45,7 @@ export function WorkspaceConversation({
     string | null
   >(null);
   const [draft, setDraft] = useState("");
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 
   const workspaceQuery = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -69,8 +71,13 @@ export function WorkspaceConversation({
   const sendMutation = useMutation({
     mutationFn: (message: string) =>
       selectedConversationId
-        ? sendConversationMessage(workspaceId, selectedConversationId, message)
-        : createConversation(workspaceId, message),
+        ? sendConversationMessage(
+            workspaceId,
+            selectedConversationId,
+            message,
+            webSearchEnabled
+          )
+        : createConversation(workspaceId, message, webSearchEnabled),
     onSuccess: async (conversation: Conversation) => {
       setSelectedConversationId(conversation.id);
       setDraft("");
@@ -223,7 +230,9 @@ export function WorkspaceConversation({
                         {message.sources.length > 0 && (
                           <div className="mt-4 border-t border-white/10 pt-3">
                             <p className="mb-2 text-xs font-medium text-muted-foreground">
-                              Sources
+                              {message.sources[0]?.sourceType === "web"
+                                ? "Web sources"
+                                : "Sources"}
                             </p>
                             <div className="space-y-2">
                               {message.sources.map((source) => (
@@ -262,7 +271,9 @@ export function WorkspaceConversation({
                 {sendMutation.isPending && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <LoaderCircle className="h-4 w-4 animate-spin" />
-                    Searching sources and generating an answer...
+                    {webSearchEnabled
+                      ? "Searching the web and generating an answer..."
+                      : "Searching workspace sources and generating an answer..."}
                   </div>
                 )}
               </div>
@@ -287,21 +298,42 @@ export function WorkspaceConversation({
                     disabled={sendMutation.isPending}
                     className="max-h-40 min-h-12 resize-y border-0 bg-transparent focus-visible:ring-0"
                   />
-                  <Button
-                    type="submit"
-                    aria-label="Send question"
-                    disabled={!draft.trim() || sendMutation.isPending}
-                    className="btn-gradient-primary mb-0.5 h-10 w-10 shrink-0 rounded-xl p-0"
-                  >
-                    {sendMutation.isPending ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-pressed={webSearchEnabled}
+                      aria-label="Use web search"
+                      title="Use web search"
+                      disabled={sendMutation.isPending}
+                      onClick={() => setWebSearchEnabled((enabled) => !enabled)}
+                      className={
+                        webSearchEnabled
+                          ? "mb-0.5 h-10 rounded-xl bg-[#42D8F5]/15 px-3 text-[#42D8F5] hover:bg-[#42D8F5]/20 hover:text-[#42D8F5]"
+                          : "mb-0.5 h-10 rounded-xl px-3 text-muted-foreground"
+                      }
+                    >
+                      <Globe className="h-4 w-4" />
+                      <span className="ml-1.5 text-xs">Web search</span>
+                    </Button>
+                    <Button
+                      type="submit"
+                      aria-label="Send question"
+                      disabled={!draft.trim() || sendMutation.isPending}
+                      className="btn-gradient-primary mb-0.5 h-10 w-10 rounded-xl p-0"
+                    >
+                      {sendMutation.isPending ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <p className="mt-2 text-center text-xs text-muted-foreground/70">
-                  Answers are generated from indexed workspace sources.
+                  {webSearchEnabled
+                    ? "Web search is enabled for this question."
+                    : "Answers are generated from indexed workspace sources."}
                 </p>
               </form>
             </main>

@@ -10,6 +10,7 @@ import conversationsRepository, {
 import workspaceRepository from "../repository/workspaces.repository.js";
 import { createEmbeddings, generateChatAnswer } from "../lib/openai.js";
 import { querySourceChunkVectors } from "../lib/pinecone.js";
+import { searchWeb } from "../lib/tavily.js";
 import type { ConversationCitation } from "../types/conversation.js";
 import type { CreateConversationInput } from "../validators/conversations.validator.js";
 
@@ -43,8 +44,45 @@ const ensureWorkspaceAccess = async (
 const createAnswer = async (
   workspaceId: string,
   question: string,
-  history: { role: "user" | "assistant"; content: string }[]
+  history: { role: "user" | "assistant"; content: string }[],
+  webSearch: boolean
 ): Promise<{ answer: string; sources: ConversationCitation[] }> => {
+  if (webSearch) {
+    const response = await searchWeb(question);
+    const sources: ConversationCitation[] = response.results.map(
+      (result, index) => ({
+        number: index + 1,
+        title: result.title,
+        sourceType: "web",
+        url: result.url,
+        excerpt: result.content,
+        score: result.score,
+      })
+    );
+
+    if (sources.length === 0) {
+      return {
+        answer: "Web search did not return any results for this question.",
+        sources: [],
+      };
+    }
+
+    const sourceContext = sources
+      .map(
+        (source) =>
+          `[${source.number}] ${source.title}\nURL: ${source.url}\nExcerpt:\n${source.excerpt}`
+      )
+      .join("\n\n");
+    const answer = await generateChatAnswer(
+      question,
+      history.slice(-10),
+      sourceContext,
+      "web"
+    );
+
+    return { answer, sources };
+  }
+
   let queryVector: number[] | undefined;
   try {
     [queryVector] = await createEmbeddings([question]);
@@ -148,7 +186,12 @@ const createConversation = async (
   input: CreateConversationInput
 ): Promise<ConversationDetail> => {
   await ensureWorkspaceAccess(userId, workspaceId);
-  const response = await createAnswer(workspaceId, input.message, []);
+  const response = await createAnswer(
+    workspaceId,
+    input.message,
+    [],
+    input.webSearch
+  );
 
   return conversationsRepository.persistExchange({
     workspaceId,
@@ -174,7 +217,12 @@ const sendConversationMessage = async (
     role: item.role,
     content: item.content,
   }));
-  const response = await createAnswer(workspaceId, input.message, history);
+  const response = await createAnswer(
+    workspaceId,
+    input.message,
+    history,
+    input.webSearch
+  );
 
   return conversationsRepository.persistExchange({
     workspaceId,

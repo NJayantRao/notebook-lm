@@ -18,6 +18,7 @@ export const workspaceConversationsParamsSchema = z
 export const createConversationSchema = z
   .object({
     message: messageText,
+    webSearch: z.boolean().default(false),
   })
   .strict();
 

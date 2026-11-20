@@ -28,11 +28,12 @@ export async function getConversation(
 
 export async function createConversation(
   workspaceId: string,
-  message: string
+  message: string,
+  webSearch: boolean
 ): Promise<Conversation> {
   const res = await api.post<ApiEnvelope<Conversation>>(
     conversationsUrl(workspaceId),
-    { message }
+    { message, webSearch }
   );
   if (!res.data.data) {
     throw new Error(res.data.message || "Failed to create conversation");
@@ -43,11 +44,12 @@ export async function createConversation(
 export async function sendConversationMessage(
   workspaceId: string,
   conversationId: string,
-  message: string
+  message: string,
+  webSearch: boolean
 ): Promise<Conversation> {
   const res = await api.post<ApiEnvelope<Conversation>>(
     `${conversationsUrl(workspaceId)}/${conversationId}/messages`,
-    { message }
+    { message, webSearch }
   );
   if (!res.data.data) {
     throw new Error(res.data.message || "Failed to send message");
