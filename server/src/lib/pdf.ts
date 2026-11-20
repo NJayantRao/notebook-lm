@@ -9,7 +9,7 @@ export type ExtractedPdfText = {
 };
 
 export const extractPdfText = async (
-  filePath: string,
+  filePath: string
 ): Promise<ExtractedPdfText> => {
   const file = await readFile(filePath);
   let extracted: Awaited<ReturnType<typeof extractText>>;
@@ -19,23 +19,21 @@ export const extractPdfText = async (
   } catch (error) {
     console.error(
       "PDF text extraction failed:",
-      error instanceof Error ? error.message : "Unknown parser error",
+      error instanceof Error ? error.message : "Unknown parser error"
     );
     throw new ValidationError(
       "Unable to extract text from this PDF. It may be encrypted or damaged.",
-      "PDF_EXTRACTION_FAILED",
+      "PDF_EXTRACTION_FAILED"
     );
   }
 
   const text = (
-    Array.isArray(extracted.text)
-      ? extracted.text.join("\n\n")
-      : extracted.text
+    Array.isArray(extracted.text) ? extracted.text.join("\n\n") : extracted.text
   ).trim();
   if (!text) {
     throw new ValidationError(
       "No selectable text was found in the PDF. Scanned PDFs are not supported yet.",
-      "PDF_TEXT_NOT_FOUND",
+      "PDF_TEXT_NOT_FOUND"
     );
   }
 

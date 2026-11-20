@@ -3,17 +3,11 @@
   "version": "9",
   "dialect": "postgres",
   "id": "3d3ebe9d-39a7-4371-906f-89ee136bba5e",
-  "prevIds": [
-    "69a60107-6600-4949-96e1-c368b3e7bd04"
-  ],
+  "prevIds": ["69a60107-6600-4949-96e1-c368b3e7bd04"],
   "footprints": [
     {
       "statementType": "create_table",
-      "statementTarget": [
-        "table",
-        "public",
-        "workspace"
-      ],
+      "statementTarget": ["table", "public", "workspace"],
       "writes": [
         "s|tbl|public.workspace",
         "n|tbl|public.workspace",
@@ -23,17 +17,11 @@
         "n|rel|public.workspace_pkey",
         "n|rel|public.workspace_user_id_key"
       ],
-      "reads": [
-        "n|sch|public"
-      ]
+      "reads": ["n|sch|public"]
     },
     {
       "statementType": "create_fk",
-      "statementTarget": [
-        "table",
-        "public",
-        "workspace"
-      ],
+      "statementTarget": ["table", "public", "workspace"],
       "writes": [
         "s|fk|public.workspace.workspace_user_id_user_id_fkey",
         "n|fk|public.workspace.workspace_user_id_user_id_fkey",
@@ -196,14 +184,10 @@
         "table": "workspace",
         "name": "workspace_user_id_user_id_fkey",
         "nameExplicit": false,
-        "columns": [
-          "user_id"
-        ],
+        "columns": ["user_id"],
         "schemaTo": "public",
         "tableTo": "user",
-        "columnsTo": [
-          "id"
-        ],
+        "columnsTo": ["id"],
         "onUpdate": "NO ACTION",
         "onDelete": "CASCADE",
         "entityType": "fks"
@@ -215,9 +199,7 @@
         "schema": "public",
         "table": "workspace",
         "name": "workspace_pkey",
-        "columns": [
-          "id"
-        ],
+        "columns": ["id"],
         "nameExplicit": false,
         "entityType": "pks"
       }
@@ -229,9 +211,7 @@
         "table": "workspace",
         "name": "workspace_user_id_key",
         "nameExplicit": false,
-        "columns": [
-          "user_id"
-        ],
+        "columns": ["user_id"],
         "nullsNotDistinct": false,
         "entityType": "uniques"
       }

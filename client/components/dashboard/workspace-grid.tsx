@@ -89,7 +89,7 @@ export function WorkspaceGrid({
     return workspaces.filter(
       (w) =>
         w.title.toLowerCase().includes(q) ||
-        (w.description || "").toLowerCase().includes(q),
+        (w.description || "").toLowerCase().includes(q)
     );
   }, [workspaces, query]);
 
@@ -129,10 +129,7 @@ export function WorkspaceGrid({
       ) : loading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Card
-              key={i}
-              className="border-white/10 bg-white/[0.02] p-5"
-            >
+            <Card key={i} className="border-white/10 bg-white/[0.02] p-5">
               <div className="flex items-start gap-3">
                 <Skeleton className="h-10 w-10 rounded-xl bg-white/10" />
                 <div className="flex-1 space-y-2">

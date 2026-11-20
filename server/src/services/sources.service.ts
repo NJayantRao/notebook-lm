@@ -1,11 +1,12 @@
-import { NotFoundError } from "../utils/api-error.js";
 import type { Express } from "express";
 import { basename, extname } from "node:path";
+import { BadRequestError, NotFoundError } from "../utils/api-error.js";
 import repository, {
   type SourceFilters,
 } from "../repository/sources.repository.js";
 import workspaceRepository from "../repository/workspaces.repository.js";
 import { scrapeWebsiteByUrl } from "../lib/firecrawl.js";
+import { getYouTubeTranscript, getYouTubeVideoId } from "../lib/youtube.js";
 import { removeUploadedPdf, verifyPdfFile } from "../lib/multer.js";
 import { extractPdfText } from "../lib/pdf.js";
 import type { CreateSourceInput } from "../validators/sources.validator.js";
@@ -16,7 +17,7 @@ const SOURCE_NOT_FOUND = "SOURCE_NOT_FOUND";
 const requireOwnedWorkspace = async (userId: string, workspaceId: string) => {
   const workspace = await workspaceRepository.findWorkspaceByIdAndUserId(
     workspaceId,
-    userId,
+    userId
   );
 
   if (!workspace) {
@@ -29,7 +30,7 @@ const requireOwnedWorkspace = async (userId: string, workspaceId: string) => {
 const listAllSources = async (
   userId: string,
   workspaceId: string,
-  filters: SourceFilters,
+  filters: SourceFilters
 ) => {
   await requireOwnedWorkspace(userId, workspaceId);
 
@@ -52,7 +53,7 @@ const listAllSources = async (
 const createSources = async (
   userId: string,
   workspaceId: string,
-  input: CreateSourceInput,
+  input: CreateSourceInput
 ) => {
   await requireOwnedWorkspace(userId, workspaceId);
 
@@ -69,13 +70,33 @@ const createSources = async (
     });
   }
 
+  if (input.sourceType === "yt_url") {
+    const videoId = getYouTubeVideoId(input.url);
+    if (!videoId) {
+      throw new BadRequestError(
+        "Enter a valid YouTube video URL.",
+        "INVALID_YOUTUBE_URL"
+      );
+    }
+
+    const content = await getYouTubeTranscript(videoId);
+    return repository.createSource(workspaceId, {
+      sourceType: "yt_url",
+      title: input.title ?? `YouTube video ${videoId}`,
+      content,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      status: "ready",
+      metadata: { videoId },
+    });
+  }
+
   return repository.createSource(workspaceId, input);
 };
 
 const uploadPdfSource = async (
   userId: string,
   workspaceId: string,
-  file: Express.Multer.File,
+  file: Express.Multer.File
 ) => {
   try {
     await requireOwnedWorkspace(userId, workspaceId);
@@ -102,7 +123,10 @@ const uploadPdfSource = async (
     try {
       await removeUploadedPdf(file.path);
     } catch (cleanupError) {
-      console.error("Failed to remove an unregistered PDF upload:", cleanupError);
+      console.error(
+        "Failed to remove an unregistered PDF upload:",
+        cleanupError
+      );
     }
 
     throw error;
@@ -118,13 +142,13 @@ const bulkDeleteSources = async (userId: string, workspaceId: string) => {
 const deleteSource = async (
   userId: string,
   workspaceId: string,
-  sourceId: string,
+  sourceId: string
 ) => {
   await requireOwnedWorkspace(userId, workspaceId);
 
   const result = await repository.deleteSourceByWorkspaceIdAndId(
     workspaceId,
-    sourceId,
+    sourceId
   );
 
   if (!result) {

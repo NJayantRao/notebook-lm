@@ -47,8 +47,7 @@ function statusMeta(status: SourceStatus) {
     case "ready":
       return {
         label: "Ready",
-        className:
-          "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+        className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
         icon: <CheckCircle2 className="h-3 w-3" />,
       };
     case "processing":
@@ -132,7 +131,9 @@ export function RecentSources({
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-muted-foreground">
               <FileText className="h-5 w-5" />
             </div>
-            <p className="text-sm font-medium text-foreground">No sources yet</p>
+            <p className="text-sm font-medium text-foreground">
+              No sources yet
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Sources you add to your workspaces will appear here.
             </p>

@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "cn"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 
-import { Button } from "@/components/ui/button"
-import { CheckIcon, CopyIcon } from "lucide-react"
+import { Button } from "@/components/ui/button";
+import { CheckIcon, CopyIcon } from "lucide-react";
 
 const codeBlockVariants = cva(
   "group/code-block relative flex w-full min-w-0 flex-col overflow-hidden rounded-lg text-sm has-[>[data-slot=code-block-content]:focus-visible]:ring-3 has-[>[data-slot=code-block-content]:focus-visible]:ring-ring/50 data-[size=sm]:text-xs",
@@ -22,7 +22,7 @@ const codeBlockVariants = cva(
       variant: "default",
     },
   }
-)
+);
 
 function CodeBlock({
   className,
@@ -39,7 +39,7 @@ function CodeBlock({
       className={cn(codeBlockVariants({ variant }), className)}
       {...props}
     />
-  )
+  );
 }
 
 function CodeBlockHeader({ className, ...props }: React.ComponentProps<"div">) {
@@ -52,7 +52,7 @@ function CodeBlockHeader({ className, ...props }: React.ComponentProps<"div">) {
       )}
       {...props}
     />
-  )
+  );
 }
 
 function CodeBlockTitle({ className, ...props }: React.ComponentProps<"div">) {
@@ -65,7 +65,7 @@ function CodeBlockTitle({ className, ...props }: React.ComponentProps<"div">) {
       )}
       {...props}
     />
-  )
+  );
 }
 
 function CodeBlockActions({
@@ -81,7 +81,7 @@ function CodeBlockActions({
       )}
       {...props}
     />
-  )
+  );
 }
 
 function CodeBlockCopyButton({
@@ -92,16 +92,16 @@ function CodeBlockCopyButton({
   onClick,
   ...props
 }: React.ComponentProps<typeof Button> & { value: string }) {
-  const [copied, setCopied] = React.useState(false)
+  const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
     if (!copied) {
-      return
+      return;
     }
 
-    const timeout = setTimeout(() => setCopied(false), 2000)
-    return () => clearTimeout(timeout)
-  }, [copied])
+    const timeout = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timeout);
+  }, [copied]);
 
   return (
     <>
@@ -113,27 +113,21 @@ function CodeBlockCopyButton({
         aria-label={copied ? "Copied" : "Copy"}
         className={cn(className)}
         onClick={(event) => {
-          onClick?.(event)
+          onClick?.(event);
           navigator.clipboard
             .writeText(value)
             .then(() => setCopied(true))
-            .catch(() => {})
+            .catch(() => {});
         }}
         {...props}
       >
-        {copied ? (
-          <CheckIcon
-          />
-        ) : (
-          <CopyIcon
-          />
-        )}
+        {copied ? <CheckIcon /> : <CopyIcon />}
       </Button>
       <span aria-live="polite" className="sr-only">
         {copied ? "Copied" : ""}
       </span>
     </>
-  )
+  );
 }
 
 function CodeBlockContent({
@@ -145,9 +139,9 @@ function CodeBlockContent({
   startLine = 1,
   ...props
 }: React.ComponentProps<"pre"> & {
-  wrap?: boolean
-  lineNumbers?: boolean
-  startLine?: number
+  wrap?: boolean;
+  lineNumbers?: boolean;
+  startLine?: number;
 }) {
   return (
     <pre
@@ -177,7 +171,7 @@ function CodeBlockContent({
           : children}
       </code>
     </pre>
-  )
+  );
 }
 
 const codeBlockLineVariants = cva(
@@ -195,7 +189,7 @@ const codeBlockLineVariants = cva(
       variant: "default",
     },
   }
-)
+);
 
 function CodeBlockLine({
   className,
@@ -208,7 +202,7 @@ function CodeBlockLine({
     children === undefined ||
     children === null ||
     children === "" ||
-    (Array.isArray(children) && children.length === 0)
+    (Array.isArray(children) && children.length === 0);
 
   return (
     <span
@@ -221,7 +215,7 @@ function CodeBlockLine({
         {empty ? "\n" : children}
       </span>
     </span>
-  )
+  );
 }
 
 function CodeBlockFooter({ className, ...props }: React.ComponentProps<"div">) {
@@ -234,7 +228,7 @@ function CodeBlockFooter({ className, ...props }: React.ComponentProps<"div">) {
       )}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -246,4 +240,4 @@ export {
   CodeBlockContent,
   CodeBlockLine,
   CodeBlockFooter,
-}
+};

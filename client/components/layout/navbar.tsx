@@ -60,7 +60,7 @@ export function Navbar() {
       <div
         className={cn(
           "border-t border-white/5 bg-[#05070d]/95 backdrop-blur-xl md:hidden",
-          open ? "block" : "hidden",
+          open ? "block" : "hidden"
         )}
       >
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 sm:px-6">

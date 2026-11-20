@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { sourceStatusEnum, sourceTypeEnum } from "../db/schema.js";
+import { getYouTubeVideoId } from "../lib/youtube.js";
 
 const workspaceId = z.string().uuid("Invalid workspace id");
 const sourceId = z.string().uuid("Invalid source id");
@@ -17,6 +18,15 @@ const httpUrl = z
       !url.password
     );
   }, "Website URL must use HTTP or HTTPS and must not contain credentials");
+
+const youtubeUrl = z
+  .string()
+  .trim()
+  .url("Enter a valid YouTube URL")
+  .refine(
+    (value) => getYouTubeVideoId(value) !== null,
+    "Enter a valid YouTube video URL"
+  );
 
 export const workspaceIdParamsSchema = z.object({
   workspaceId,
@@ -44,6 +54,13 @@ export const createSourceSchema = z.discriminatedUnion("sourceType", [
     .object({
       sourceType: z.literal("website"),
       url: httpUrl,
+      title: z.string().trim().min(1, "Title cannot be empty").optional(),
+    })
+    .strict(),
+  z
+    .object({
+      sourceType: z.literal("yt_url"),
+      url: youtubeUrl,
       title: z.string().trim().min(1, "Title cannot be empty").optional(),
     })
     .strict(),

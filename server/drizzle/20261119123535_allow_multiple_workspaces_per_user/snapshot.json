@@ -3,17 +3,11 @@
   "version": "9",
   "dialect": "postgres",
   "id": "9af31620-95de-4b04-a147-22b82926989d",
-  "prevIds": [
-    "3d3ebe9d-39a7-4371-906f-89ee136bba5e"
-  ],
+  "prevIds": ["3d3ebe9d-39a7-4371-906f-89ee136bba5e"],
   "footprints": [
     {
       "statementType": "drop_unique",
-      "statementTarget": [
-        "table",
-        "public",
-        "workspace"
-      ],
+      "statementTarget": ["table", "public", "workspace"],
       "writes": [
         "s|uq|public.workspace.workspace_user_id_key",
         "n|uq|public.workspace.workspace_user_id_key",
@@ -26,9 +20,7 @@
         "n|sch|public",
         "e|col|public.workspace.user_id"
       ],
-      "sharedWrites": [
-        "e|uniqueness|public.workspace.user_id"
-      ]
+      "sharedWrites": ["e|uniqueness|public.workspace.user_id"]
     },
     {
       "statementType": "create_index",

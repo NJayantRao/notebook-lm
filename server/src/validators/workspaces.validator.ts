@@ -25,10 +25,11 @@ export const updateWorkspaceSchema = z
   })
   .strict()
   .refine(
-    (workspace) => Object.values(workspace).some((value) => value !== undefined),
+    (workspace) =>
+      Object.values(workspace).some((value) => value !== undefined),
     {
       message: "At least one workspace field must be provided",
-    },
+    }
   );
 
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;

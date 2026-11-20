@@ -52,7 +52,10 @@ export function HeroSection() {
               {[
                 { label: "Sources connected", value: "Documents, notes, web" },
                 { label: "Grounded answers", value: "Cited to your knowledge" },
-                { label: "Instant insights", value: "Ask, explore, understand" },
+                {
+                  label: "Instant insights",
+                  value: "Ask, explore, understand",
+                },
               ].map((item) => (
                 <div
                   key={item.label}

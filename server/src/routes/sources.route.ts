@@ -17,7 +17,7 @@ router.post(
   "/upload",
   controller.validateUploadWorkspace,
   uploadPdfFile,
-  AsyncHandler(controller.uploadPdf),
+  AsyncHandler(controller.uploadPdf)
 );
 router.delete("/bulk-delete", AsyncHandler(controller.bulkDeleteSources));
 router.delete("/:sourceId", AsyncHandler(controller.deleteSource));

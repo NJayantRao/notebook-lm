@@ -55,7 +55,7 @@ export const session = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
   },
-  (table) => [index("session_userId_idx").on(table.userId)],
+  (table) => [index("session_userId_idx").on(table.userId)]
 );
 
 export const account = pgTable(
@@ -79,7 +79,7 @@ export const account = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("account_userId_idx").on(table.userId)],
+  (table) => [index("account_userId_idx").on(table.userId)]
 );
 
 export const verification = pgTable(
@@ -95,7 +95,7 @@ export const verification = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("verification_identifier_idx").on(table.identifier)],
+  (table) => [index("verification_identifier_idx").on(table.identifier)]
 );
 
 export const workspace = pgTable(
@@ -124,7 +124,7 @@ export const workspace = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("workspace_userId_idx").on(table.userId)],
+  (table) => [index("workspace_userId_idx").on(table.userId)]
 );
 
 export const source = pgTable(
@@ -163,7 +163,7 @@ export const source = pgTable(
   (table) => [
     index("source_workspaceId_idx").on(table.workspaceId),
     index("source_status_idx").on(table.status),
-  ],
+  ]
 );
 
 export const chunk = pgTable(
@@ -199,7 +199,7 @@ export const chunk = pgTable(
     index("chunk_sourceId_idx").on(table.sourceId),
 
     uniqueIndex("chunk_sourceId_index_unique").on(table.sourceId, table.index),
-  ],
+  ]
 );
 
 export const relations = defineRelations(
@@ -263,5 +263,5 @@ export const relations = defineRelations(
         to: r.source.id,
       }),
     },
-  }),
+  })
 );

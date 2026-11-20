@@ -40,7 +40,7 @@ export function LoginForm() {
       if (result.error) {
         setError(
           result.error.message ||
-            "Unable to sign in. Please check your credentials and try again.",
+            "Unable to sign in. Please check your credentials and try again."
         );
         setLoading(false);
         return;
@@ -104,7 +104,10 @@ export function LoginForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm text-foreground/90">
+                <Label
+                  htmlFor="password"
+                  className="text-sm text-foreground/90"
+                >
                   Password
                 </Label>
                 <div className="relative">
@@ -122,7 +125,9 @@ export function LoginForm() {
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                     disabled={loading}
                   >
                     {showPassword ? (

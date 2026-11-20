@@ -15,7 +15,11 @@ import {
 const listAllSources = async (req: Request, res: Response) => {
   const { workspaceId } = validate(workspaceIdParamsSchema, req.params);
   const filters = validate(listSourcesQuerySchema, req.query);
-  const result = await service.listAllSources(req.user.id, workspaceId, filters);
+  const result = await service.listAllSources(
+    req.user.id,
+    workspaceId,
+    filters
+  );
 
   res
     .status(200)
@@ -35,7 +39,7 @@ const createSources = async (req: Request, res: Response) => {
 const validateUploadWorkspace = (
   req: Request,
   _res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) => {
   try {
     validate(workspaceIdParamsSchema, req.params);
@@ -54,7 +58,7 @@ const uploadPdf = async (req: Request, res: Response) => {
   const result = await service.uploadPdfSource(
     req.user.id,
     workspaceId,
-    req.file,
+    req.file
   );
 
   res
@@ -64,12 +68,15 @@ const uploadPdf = async (req: Request, res: Response) => {
 
 const bulkDeleteSources = async (req: Request, res: Response) => {
   const { workspaceId } = validate(workspaceIdParamsSchema, req.params);
-  const deletedCount = await service.bulkDeleteSources(req.user.id, workspaceId);
+  const deletedCount = await service.bulkDeleteSources(
+    req.user.id,
+    workspaceId
+  );
 
   res
     .status(200)
     .json(
-      new ApiResponse(200, "Sources deleted successfully", { deletedCount }),
+      new ApiResponse(200, "Sources deleted successfully", { deletedCount })
     );
 };
 

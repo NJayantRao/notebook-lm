@@ -1,6 +1,9 @@
 import { Firecrawl } from "firecrawl";
 import { ENV } from "../config/env.js";
-import { BadGatewayError, ServiceUnavailableError } from "../utils/api-error.js";
+import {
+  BadGatewayError,
+  ServiceUnavailableError,
+} from "../utils/api-error.js";
 
 export type ScrapedWebsite = {
   url: string;
@@ -10,13 +13,13 @@ export type ScrapedWebsite = {
 };
 
 export const scrapeWebsiteByUrl = async (
-  url: string,
+  url: string
 ): Promise<ScrapedWebsite> => {
   const apiKey = ENV.FIRECRAWL_API_KEY?.trim();
   if (!apiKey) {
     throw new ServiceUnavailableError(
       "Website scraping is not configured.",
-      "FIRECRAWL_NOT_CONFIGURED",
+      "FIRECRAWL_NOT_CONFIGURED"
     );
   }
 
@@ -29,7 +32,7 @@ export const scrapeWebsiteByUrl = async (
     console.error("Firecrawl website scrape failed:", error);
     throw new BadGatewayError(
       "The website could not be scraped. Check the URL and try again.",
-      "WEBSITE_SCRAPE_FAILED",
+      "WEBSITE_SCRAPE_FAILED"
     );
   }
 
@@ -37,7 +40,7 @@ export const scrapeWebsiteByUrl = async (
     console.error("Firecrawl returned a scrape error:", result.metadata.error);
     throw new BadGatewayError(
       "The website could not be scraped. Check the URL and try again.",
-      "WEBSITE_SCRAPE_FAILED",
+      "WEBSITE_SCRAPE_FAILED"
     );
   }
 
@@ -45,7 +48,7 @@ export const scrapeWebsiteByUrl = async (
   if (!markdown) {
     throw new BadGatewayError(
       "The website did not provide any readable content.",
-      "WEBSITE_CONTENT_EMPTY",
+      "WEBSITE_CONTENT_EMPTY"
     );
   }
 

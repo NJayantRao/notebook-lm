@@ -7,9 +7,15 @@ export type CreateWebsiteSourceInput = {
   title?: string;
 };
 
+export type CreateYouTubeSourceInput = {
+  sourceType: "yt_url";
+  url: string;
+  title?: string;
+};
+
 export async function uploadPdfSource(
   workspaceId: string,
-  file: File,
+  file: File
 ): Promise<Source> {
   const formData = new FormData();
   formData.append("file", file);
@@ -17,7 +23,7 @@ export async function uploadPdfSource(
   const res = await api.post<ApiEnvelope<Source>>(
     `/api/workspace/${workspaceId}/upload`,
     formData,
-    { headers: { "Content-Type": "multipart/form-data" } },
+    { headers: { "Content-Type": "multipart/form-data" } }
   );
   if (!res.data.data) {
     throw new Error(res.data.message || "Failed to upload PDF");
@@ -35,30 +41,49 @@ export type ListSourcesParams = {
 
 export async function listSources(
   workspaceId: string,
-  params: ListSourcesParams = {},
+  params: ListSourcesParams = {}
 ): Promise<SourcesPage> {
   const res = await api.get<ApiEnvelope<SourcesPage>>(
     `/api/workspace/${workspaceId}`,
-    { params },
+    { params }
   );
   return (
     res.data.data ?? {
       sources: [],
-      pagination: { total: 0, page: 1, limit: params.limit ?? 20, totalPages: 0 },
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: params.limit ?? 20,
+        totalPages: 0,
+      },
     }
   );
 }
 
 export async function createWebsiteSource(
   workspaceId: string,
-  input: CreateWebsiteSourceInput,
+  input: CreateWebsiteSourceInput
 ): Promise<Source> {
   const res = await api.post<ApiEnvelope<Source>>(
     `/api/workspace/${workspaceId}/`,
-    input,
+    input
   );
   if (!res.data.data) {
     throw new Error(res.data.message || "Failed to scrape website");
+  }
+  return res.data.data;
+}
+
+export async function createYouTubeSource(
+  workspaceId: string,
+  input: CreateYouTubeSourceInput
+): Promise<Source> {
+  const res = await api.post<ApiEnvelope<Source>>(
+    `/api/workspace/${workspaceId}/`,
+    input
+  );
+  if (!res.data.data) {
+    throw new Error(res.data.message || "Failed to get YouTube transcript");
   }
   return res.data.data;
 }

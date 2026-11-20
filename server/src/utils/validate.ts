@@ -8,7 +8,7 @@ import { BadRequestError } from "./api-error.js";
  */
 const validate = <TSchema extends z.ZodType>(
   schema: TSchema,
-  data: unknown,
+  data: unknown
 ): z.infer<TSchema> => {
   const result = schema.safeParse(data);
 

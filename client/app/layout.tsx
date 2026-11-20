@@ -36,7 +36,7 @@ export default function RootLayout({
         geistSans.variable,
         geistMono.variable,
         "font-sans",
-        inter.variable,
+        inter.variable
       )}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">

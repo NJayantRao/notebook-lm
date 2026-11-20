@@ -7,7 +7,7 @@ import { UnauthorizedError } from "../utils/api-error.js";
 export const requireAuth = async (
   req: Request,
   _res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) => {
   try {
     const session = await auth.api.getSession({

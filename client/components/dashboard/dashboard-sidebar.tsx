@@ -37,8 +37,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
     <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
       {navItems.map((item) => {
         const Icon = item.icon;
-        const active =
-          item.href === "/dashboard" && pathname === "/dashboard";
+        const active = item.href === "/dashboard" && pathname === "/dashboard";
         const content = (
           <>
             <Icon className="h-4 w-4" />
@@ -67,7 +66,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
           active
             ? "bg-white/[0.06] text-foreground"
-            : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+            : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
         );
 
         if (isHash) {
@@ -98,7 +97,13 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function UserFooter({ user, onLogout }: { user?: SidebarUser; onLogout: () => void }) {
+function UserFooter({
+  user,
+  onLogout,
+}: {
+  user?: SidebarUser;
+  onLogout: () => void;
+}) {
   const initials = (user?.name || user?.email || "U")
     .split(" ")
     .map((s) => s[0])
@@ -112,7 +117,11 @@ function UserFooter({ user, onLogout }: { user?: SidebarUser; onLogout: () => vo
         <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-gradient-to-br from-[#477BFF]/30 to-[#42D8F5]/20 text-xs font-medium text-foreground">
           {user?.image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.image} alt="" className="h-full w-full object-cover" />
+            <img
+              src={user.image}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           ) : (
             initials
           )}

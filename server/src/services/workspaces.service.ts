@@ -16,7 +16,7 @@ const createWorkspace = (userId: string, input: CreateWorkspaceInput) =>
 const getWorkspaceById = async (userId: string, workspaceId: string) => {
   const result = await repository.findWorkspaceByIdAndUserId(
     workspaceId,
-    userId,
+    userId
   );
 
   if (!result) {
@@ -29,7 +29,7 @@ const getWorkspaceById = async (userId: string, workspaceId: string) => {
 const updateWorkspace = async (
   userId: string,
   workspaceId: string,
-  input: UpdateWorkspaceInput,
+  input: UpdateWorkspaceInput
 ) => {
   const result = await repository.updateWorkspace(workspaceId, userId, input);
 

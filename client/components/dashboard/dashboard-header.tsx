@@ -1,17 +1,19 @@
 "use client";
 
-import { FileUp, Globe, Plus } from "lucide-react";
+import { FileUp, Globe, PlayCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function DashboardHeader({
   userName,
   onNewWorkspace,
   onAddWebsite,
+  onAddYouTube,
   onUploadPdf,
 }: {
   userName?: string | null;
   onNewWorkspace: () => void;
   onAddWebsite: () => void;
+  onAddYouTube: () => void;
   onUploadPdf: () => void;
 }) {
   const firstName = userName?.trim()?.split(/\s+/)[0] || "there";
@@ -35,6 +37,14 @@ export function DashboardHeader({
           >
             <Globe className="mr-1.5 h-4 w-4" />
             Add Website
+          </Button>
+          <Button
+            variant="outline"
+            onClick={onAddYouTube}
+            className="h-10 rounded-xl border-white/10 bg-white/[0.03] px-4 text-sm font-medium hover:bg-white/[0.06]"
+          >
+            <PlayCircle className="mr-1.5 h-4 w-4" />
+            Add YouTube
           </Button>
           <Button
             variant="outline"

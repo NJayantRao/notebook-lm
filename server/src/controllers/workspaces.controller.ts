@@ -46,7 +46,7 @@ const updateWorkspace = async (req: Request, res: Response) => {
   const workspace = await service.updateWorkspace(
     req.user.id,
     workspaceId,
-    input,
+    input
   );
 
   res

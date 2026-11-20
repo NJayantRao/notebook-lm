@@ -136,7 +136,8 @@ export function AddWebsiteSourceDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="website-title">
-                  Title <span className="text-muted-foreground">(optional)</span>
+                  Title{" "}
+                  <span className="text-muted-foreground">(optional)</span>
                 </Label>
                 <Input
                   id="website-title"

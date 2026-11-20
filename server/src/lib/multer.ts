@@ -14,7 +14,7 @@ import {
 const MAX_PDF_SIZE_BYTES = 25 * 1024 * 1024;
 const uploadDirectory = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  "../../uploads",
+  "../../uploads"
 );
 
 const pdfUpload = multer({
@@ -24,9 +24,11 @@ const pdfUpload = multer({
         () => callback(null, uploadDirectory),
         (error: unknown) =>
           callback(
-            error instanceof Error ? error : new Error("Unable to create upload directory"),
-            uploadDirectory,
-          ),
+            error instanceof Error
+              ? error
+              : new Error("Unable to create upload directory"),
+            uploadDirectory
+          )
       );
     },
     filename: (_req, _file, callback) => {
@@ -47,7 +49,7 @@ const pdfUpload = multer({
 
     if (!extensionIsPdf || !mimeTypeIsPdf) {
       callback(
-        new UnsupportedMediaTypeError("Only PDF files are allowed.", "PDF_ONLY"),
+        new UnsupportedMediaTypeError("Only PDF files are allowed.", "PDF_ONLY")
       );
       return;
     }
@@ -65,8 +67,8 @@ export const uploadPdfFile: RequestHandler = (req, res, next) => {
         next(
           new PayloadTooLargeError(
             "PDF files must be 25 MB or smaller.",
-            "PDF_TOO_LARGE",
-          ),
+            "PDF_TOO_LARGE"
+          )
         );
         return;
       }
@@ -89,7 +91,7 @@ export const verifyPdfFile = async (filePath: string): Promise<void> => {
     if (header.subarray(0, bytesRead).indexOf("%PDF-") === -1) {
       throw new UnsupportedMediaTypeError(
         "The uploaded file is not a valid PDF.",
-        "INVALID_PDF_SIGNATURE",
+        "INVALID_PDF_SIGNATURE"
       );
     }
   } finally {

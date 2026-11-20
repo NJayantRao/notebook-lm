@@ -19,7 +19,7 @@ const findWorkspacesByUserId = async (userId: string): Promise<Workspace[]> =>
 
 const findWorkspaceByIdAndUserId = async (
   workspaceId: string,
-  userId: string,
+  userId: string
 ): Promise<Workspace | undefined> => {
   const [result] = await db
     .select()
@@ -32,7 +32,7 @@ const findWorkspaceByIdAndUserId = async (
 
 const createWorkspace = async (
   userId: string,
-  data: CreateWorkspaceInput,
+  data: CreateWorkspaceInput
 ): Promise<Workspace> => {
   const [result] = await db
     .insert(workspace)
@@ -55,7 +55,7 @@ const createWorkspace = async (
 const updateWorkspace = async (
   workspaceId: string,
   userId: string,
-  data: UpdateWorkspaceInput,
+  data: UpdateWorkspaceInput
 ): Promise<Workspace | undefined> => {
   const [result] = await db
     .update(workspace)
@@ -68,7 +68,7 @@ const updateWorkspace = async (
 
 const deleteWorkspace = async (
   workspaceId: string,
-  userId: string,
+  userId: string
 ): Promise<Workspace | undefined> => {
   const [result] = await db
     .delete(workspace)

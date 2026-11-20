@@ -3,51 +3,33 @@
   "version": "9",
   "dialect": "postgres",
   "id": "89db31a5-bd84-4c92-b64c-829837e78a56",
-  "prevIds": [
-    "9af31620-95de-4b04-a147-22b82926989d"
-  ],
+  "prevIds": ["9af31620-95de-4b04-a147-22b82926989d"],
   "footprints": [
     {
       "statementType": "create_enum",
-      "statementTarget": [
-        "enum",
-        "public",
-        "source_status"
-      ],
+      "statementTarget": ["enum", "public", "source_status"],
       "writes": [
         "s|enum|public.source_status",
         "n|enum|public.source_status",
         "e|enum|public.source_status",
         "n|type|public.source_status"
       ],
-      "reads": [
-        "n|sch|public"
-      ]
+      "reads": ["n|sch|public"]
     },
     {
       "statementType": "create_enum",
-      "statementTarget": [
-        "enum",
-        "public",
-        "source_type"
-      ],
+      "statementTarget": ["enum", "public", "source_type"],
       "writes": [
         "s|enum|public.source_type",
         "n|enum|public.source_type",
         "e|enum|public.source_type",
         "n|type|public.source_type"
       ],
-      "reads": [
-        "n|sch|public"
-      ]
+      "reads": ["n|sch|public"]
     },
     {
       "statementType": "create_table",
-      "statementTarget": [
-        "table",
-        "public",
-        "chunk"
-      ],
+      "statementTarget": ["table", "public", "chunk"],
       "writes": [
         "s|tbl|public.chunk",
         "n|tbl|public.chunk",
@@ -56,17 +38,11 @@
         "n|type|public.chunk",
         "n|rel|public.chunk_pkey"
       ],
-      "reads": [
-        "n|sch|public"
-      ]
+      "reads": ["n|sch|public"]
     },
     {
       "statementType": "create_table",
-      "statementTarget": [
-        "table",
-        "public",
-        "source"
-      ],
+      "statementTarget": ["table", "public", "source"],
       "writes": [
         "s|tbl|public.source",
         "n|tbl|public.source",
@@ -83,12 +59,7 @@
     },
     {
       "statementType": "create_index",
-      "statementTarget": [
-        "index",
-        "public",
-        "chunk",
-        "chunk_sourceId_idx"
-      ],
+      "statementTarget": ["index", "public", "chunk", "chunk_sourceId_idx"],
       "writes": [
         "s|idx|public.chunk_sourceId_idx",
         "n|idx|public.chunk_sourceId_idx",
@@ -144,12 +115,7 @@
     },
     {
       "statementType": "create_index",
-      "statementTarget": [
-        "index",
-        "public",
-        "source",
-        "source_status_idx"
-      ],
+      "statementTarget": ["index", "public", "source", "source_status_idx"],
       "writes": [
         "s|idx|public.source_status_idx",
         "n|idx|public.source_status_idx",
@@ -164,11 +130,7 @@
     },
     {
       "statementType": "create_fk",
-      "statementTarget": [
-        "table",
-        "public",
-        "chunk"
-      ],
+      "statementTarget": ["table", "public", "chunk"],
       "writes": [
         "s|fk|public.chunk.chunk_source_id_source_id_fkey",
         "n|fk|public.chunk.chunk_source_id_source_id_fkey",
@@ -187,11 +149,7 @@
     },
     {
       "statementType": "create_fk",
-      "statementTarget": [
-        "table",
-        "public",
-        "source"
-      ],
+      "statementTarget": ["table", "public", "source"],
       "writes": [
         "s|fk|public.source.source_workspace_id_workspace_id_fkey",
         "n|fk|public.source.source_workspace_id_workspace_id_fkey",
@@ -233,12 +191,7 @@
       "row": {
         "schema": "public",
         "name": "source_status",
-        "values": [
-          "pending",
-          "processing",
-          "failed",
-          "ready"
-        ],
+        "values": ["pending", "processing", "failed", "ready"],
         "entityType": "enums"
       }
     },
@@ -247,13 +200,7 @@
       "row": {
         "schema": "public",
         "name": "source_type",
-        "values": [
-          "text",
-          "markdown",
-          "pdf",
-          "website",
-          "yt_url"
-        ],
+        "values": ["text", "markdown", "pdf", "website", "yt_url"],
         "entityType": "enums"
       }
     },
@@ -655,14 +602,10 @@
         "table": "chunk",
         "name": "chunk_source_id_source_id_fkey",
         "nameExplicit": false,
-        "columns": [
-          "source_id"
-        ],
+        "columns": ["source_id"],
         "schemaTo": "public",
         "tableTo": "source",
-        "columnsTo": [
-          "id"
-        ],
+        "columnsTo": ["id"],
         "onUpdate": "NO ACTION",
         "onDelete": "CASCADE",
         "entityType": "fks"
@@ -675,14 +618,10 @@
         "table": "source",
         "name": "source_workspace_id_workspace_id_fkey",
         "nameExplicit": false,
-        "columns": [
-          "workspace_id"
-        ],
+        "columns": ["workspace_id"],
         "schemaTo": "public",
         "tableTo": "workspace",
-        "columnsTo": [
-          "id"
-        ],
+        "columnsTo": ["id"],
         "onUpdate": "NO ACTION",
         "onDelete": "CASCADE",
         "entityType": "fks"
@@ -694,9 +633,7 @@
         "schema": "public",
         "table": "chunk",
         "name": "chunk_pkey",
-        "columns": [
-          "id"
-        ],
+        "columns": ["id"],
         "nameExplicit": false,
         "entityType": "pks"
       }
@@ -707,9 +644,7 @@
         "schema": "public",
         "table": "source",
         "name": "source_pkey",
-        "columns": [
-          "id"
-        ],
+        "columns": ["id"],
         "nameExplicit": false,
         "entityType": "pks"
       }

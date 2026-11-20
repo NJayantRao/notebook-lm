@@ -14,7 +14,7 @@ export async function listWorkspaces(): Promise<Workspace[]> {
 }
 
 export async function createWorkspace(
-  input: CreateWorkspaceInput,
+  input: CreateWorkspaceInput
 ): Promise<Workspace> {
   const res = await api.post<ApiEnvelope<Workspace>>("/api/workspaces", input);
   if (!res.data.data) {
@@ -23,9 +23,11 @@ export async function createWorkspace(
   return res.data.data;
 }
 
-export async function getWorkspaceById(workspaceId: string): Promise<Workspace> {
+export async function getWorkspaceById(
+  workspaceId: string
+): Promise<Workspace> {
   const res = await api.get<ApiEnvelope<Workspace>>(
-    `/api/workspaces/${workspaceId}`,
+    `/api/workspaces/${workspaceId}`
   );
   if (!res.data.data) {
     throw new Error(res.data.message || "Workspace not found");
@@ -35,7 +37,7 @@ export async function getWorkspaceById(workspaceId: string): Promise<Workspace> 
 
 export async function deleteWorkspace(workspaceId: string): Promise<Workspace> {
   const res = await api.delete<ApiEnvelope<Workspace>>(
-    `/api/workspaces/${workspaceId}`,
+    `/api/workspaces/${workspaceId}`
   );
   if (!res.data.data) {
     throw new Error(res.data.message || "Failed to delete workspace");

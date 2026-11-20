@@ -25,7 +25,7 @@ export type SourceFilters = {
 
 const buildSourceConditions = (
   workspaceId: string,
-  filters: SourceFilters,
+  filters: SourceFilters
 ): SQL => {
   const conditions: SQL[] = [eq(source.workspaceId, workspaceId)];
 
@@ -34,7 +34,7 @@ const buildSourceConditions = (
     const searchCondition = or(
       ilike(source.title, pattern),
       ilike(source.content, pattern),
-      ilike(source.url, pattern),
+      ilike(source.url, pattern)
     );
 
     if (searchCondition) {
@@ -55,7 +55,7 @@ const buildSourceConditions = (
 
 const findSourcesByWorkspaceId = async (
   workspaceId: string,
-  filters: SourceFilters,
+  filters: SourceFilters
 ): Promise<Source[]> =>
   db
     .select()
@@ -67,7 +67,7 @@ const findSourcesByWorkspaceId = async (
 
 const countSourcesByWorkspaceId = async (
   workspaceId: string,
-  filters: SourceFilters,
+  filters: SourceFilters
 ): Promise<number> => {
   const [result] = await db
     .select({ value: count() })
@@ -79,7 +79,7 @@ const countSourcesByWorkspaceId = async (
 
 const createSource = async (
   workspaceId: string,
-  data: CreateSourceData,
+  data: CreateSourceData
 ): Promise<Source> => {
   const [result] = await db
     .insert(source)
@@ -102,7 +102,7 @@ const createSource = async (
 };
 
 const deleteAllSourcesByWorkspaceId = async (
-  workspaceId: string,
+  workspaceId: string
 ): Promise<number> => {
   const deleted = await db
     .delete(source)
@@ -114,7 +114,7 @@ const deleteAllSourcesByWorkspaceId = async (
 
 const deleteSourceByWorkspaceIdAndId = async (
   workspaceId: string,
-  sourceId: string,
+  sourceId: string
 ): Promise<Source | undefined> => {
   const [result] = await db
     .delete(source)

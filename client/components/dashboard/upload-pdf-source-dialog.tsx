@@ -40,13 +40,8 @@ export function UploadPdfSourceDialog({
     "";
 
   const mutation = useMutation({
-    mutationFn: ({
-      workspaceId,
-      file,
-    }: {
-      workspaceId: string;
-      file: File;
-    }) => uploadPdfSource(workspaceId, file),
+    mutationFn: ({ workspaceId, file }: { workspaceId: string; file: File }) =>
+      uploadPdfSource(workspaceId, file),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["recent-sources"] });
       await queryClient.invalidateQueries({ queryKey: ["sources"] });

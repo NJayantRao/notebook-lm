@@ -95,7 +95,8 @@ export function CreateWorkspaceDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="ws-description">
-              Description <span className="text-muted-foreground">(optional)</span>
+              Description{" "}
+              <span className="text-muted-foreground">(optional)</span>
             </Label>
             <textarea
               id="ws-description"
