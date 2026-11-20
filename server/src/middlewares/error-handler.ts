@@ -6,7 +6,7 @@ const errorMiddleware = (err: any, _req: any, res: any, _next: any) => {
     return res.status(err.statusCode).json(err);
   }
 
-  console.error("[UNHANDLED_ERROR]: ", err.stack);
+  console.error("[UNHANDLED_ERROR]: ", err.message, err.stack);
   return res
     .status(500)
     .json(new InternalServerError(err?.message ?? "Internal Server Error"));
