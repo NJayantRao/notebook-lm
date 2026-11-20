@@ -7,6 +7,7 @@ import { OverviewCards } from "@/components/dashboard/overview-cards";
 import { WorkspaceGrid } from "@/components/dashboard/workspace-grid";
 import { RecentSources } from "@/components/dashboard/recent-sources";
 import { CreateWorkspaceDialog } from "@/components/dashboard/create-workspace-dialog";
+import { AddWebsiteSourceDialog } from "@/components/dashboard/add-website-source-dialog";
 import { useAuthSession } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { listWorkspaces } from "@/services/workspace.service";
@@ -16,6 +17,7 @@ import type { Source } from "@/lib/types";
 export function DashboardShell() {
   const { data: session } = useAuthSession();
   const [createOpen, setCreateOpen] = useState(false);
+  const [addWebsiteOpen, setAddWebsiteOpen] = useState(false);
 
   const workspacesQuery = useQuery({
     queryKey: ["workspaces"],
@@ -60,6 +62,7 @@ export function DashboardShell() {
           <DashboardHeader
             userName={session?.user?.name}
             onNewWorkspace={() => setCreateOpen(true)}
+            onAddWebsite={() => setAddWebsiteOpen(true)}
           />
 
           <main className="flex-1 space-y-8 px-4 py-6 sm:px-6 lg:px-8">
@@ -87,6 +90,11 @@ export function DashboardShell() {
       </div>
 
       <CreateWorkspaceDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <AddWebsiteSourceDialog
+        open={addWebsiteOpen}
+        onOpenChange={setAddWebsiteOpen}
+        workspaces={workspaces}
+      />
     </div>
   );
 }

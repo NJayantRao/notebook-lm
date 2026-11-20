@@ -3,9 +3,17 @@ import { and, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import db from "../db/index.js";
 import { source } from "../db/schema.js";
 import { InternalServerError } from "../utils/api-error.js";
-import type { CreateSourceInput } from "../validators/sources.validator.js";
 
 type Source = typeof source.$inferSelect;
+
+type CreateSourceData = {
+  sourceType: Source["sourceType"];
+  title: string;
+  content: string;
+  url?: string | null;
+  status?: Source["status"];
+  metadata?: Record<string, unknown> | undefined;
+};
 
 export type SourceFilters = {
   search?: string | undefined;
@@ -26,6 +34,7 @@ const buildSourceConditions = (
     const searchCondition = or(
       ilike(source.title, pattern),
       ilike(source.content, pattern),
+      ilike(source.url, pattern),
     );
 
     if (searchCondition) {
@@ -70,7 +79,7 @@ const countSourcesByWorkspaceId = async (
 
 const createSource = async (
   workspaceId: string,
-  data: CreateSourceInput,
+  data: CreateSourceData,
 ): Promise<Source> => {
   const [result] = await db
     .insert(source)
@@ -79,8 +88,8 @@ const createSource = async (
       sourceType: data.sourceType,
       title: data.title,
       content: data.content,
-      url: null,
-      status: "pending",
+      url: data.url ?? null,
+      status: data.status ?? "pending",
       metadata: data.metadata ?? {},
     })
     .returning();

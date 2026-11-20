@@ -1,14 +1,16 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Globe, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function DashboardHeader({
   userName,
   onNewWorkspace,
+  onAddWebsite,
 }: {
   userName?: string | null;
   onNewWorkspace: () => void;
+  onAddWebsite: () => void;
 }) {
   const firstName = userName?.trim()?.split(/\s+/)[0] || "there";
 
@@ -23,12 +25,22 @@ export function DashboardHeader({
             Your knowledge space is ready. What would you like to explore today?
           </p>
         </div>
-        <Button
-          onClick={onNewWorkspace}
-          className="btn-gradient-primary h-10 rounded-xl px-4 text-sm font-medium shadow-[0_8px_30px_rgba(71,123,255,0.3)]"
-        >
-          <Plus className="mr-1.5 h-4 w-4" />+ New Workspace
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            variant="outline"
+            onClick={onAddWebsite}
+            className="h-10 rounded-xl border-white/10 bg-white/[0.03] px-4 text-sm font-medium hover:bg-white/[0.06]"
+          >
+            <Globe className="mr-1.5 h-4 w-4" />
+            Add Website
+          </Button>
+          <Button
+            onClick={onNewWorkspace}
+            className="btn-gradient-primary h-10 rounded-xl px-4 text-sm font-medium shadow-[0_8px_30px_rgba(71,123,255,0.3)]"
+          >
+            <Plus className="mr-1.5 h-4 w-4" />+ New Workspace
+          </Button>
+        </div>
       </div>
     </header>
   );

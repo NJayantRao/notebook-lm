@@ -1,0 +1,718 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "89db31a5-bd84-4c92-b64c-829837e78a56",
+  "prevIds": [
+    "9af31620-95de-4b04-a147-22b82926989d"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "source_status"
+      ],
+      "writes": [
+        "s|enum|public.source_status",
+        "n|enum|public.source_status",
+        "e|enum|public.source_status",
+        "n|type|public.source_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "source_type"
+      ],
+      "writes": [
+        "s|enum|public.source_type",
+        "n|enum|public.source_type",
+        "e|enum|public.source_type",
+        "n|type|public.source_type"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "chunk"
+      ],
+      "writes": [
+        "s|tbl|public.chunk",
+        "n|tbl|public.chunk",
+        "e|tbl|public.chunk",
+        "n|rel|public.chunk",
+        "n|type|public.chunk",
+        "n|rel|public.chunk_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "source"
+      ],
+      "writes": [
+        "s|tbl|public.source",
+        "n|tbl|public.source",
+        "e|tbl|public.source",
+        "n|rel|public.source",
+        "n|type|public.source",
+        "n|rel|public.source_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.source_type",
+        "n|enum|public.source_status"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "chunk",
+        "chunk_sourceId_idx"
+      ],
+      "writes": [
+        "s|idx|public.chunk_sourceId_idx",
+        "n|idx|public.chunk_sourceId_idx",
+        "e|idx|public.chunk_sourceId_idx",
+        "n|rel|public.chunk_sourceId_idx"
+      ],
+      "reads": [
+        "n|tbl|public.chunk",
+        "n|sch|public",
+        "n|col|public.chunk.source_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "chunk",
+        "chunk_sourceId_index_unique"
+      ],
+      "writes": [
+        "s|idx|public.chunk_sourceId_index_unique",
+        "n|idx|public.chunk_sourceId_index_unique",
+        "e|idx|public.chunk_sourceId_index_unique",
+        "n|rel|public.chunk_sourceId_index_unique"
+      ],
+      "reads": [
+        "n|tbl|public.chunk",
+        "n|sch|public",
+        "n|col|public.chunk.source_id",
+        "n|col|public.chunk.index"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "source",
+        "source_workspaceId_idx"
+      ],
+      "writes": [
+        "s|idx|public.source_workspaceId_idx",
+        "n|idx|public.source_workspaceId_idx",
+        "e|idx|public.source_workspaceId_idx",
+        "n|rel|public.source_workspaceId_idx"
+      ],
+      "reads": [
+        "n|tbl|public.source",
+        "n|sch|public",
+        "n|col|public.source.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "source",
+        "source_status_idx"
+      ],
+      "writes": [
+        "s|idx|public.source_status_idx",
+        "n|idx|public.source_status_idx",
+        "e|idx|public.source_status_idx",
+        "n|rel|public.source_status_idx"
+      ],
+      "reads": [
+        "n|tbl|public.source",
+        "n|sch|public",
+        "n|col|public.source.status"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "chunk"
+      ],
+      "writes": [
+        "s|fk|public.chunk.chunk_source_id_source_id_fkey",
+        "n|fk|public.chunk.chunk_source_id_source_id_fkey",
+        "e|fk|public.chunk.chunk_source_id_source_id_fkey",
+        "n|con|public.chunk.chunk_source_id_source_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.chunk",
+        "n|sch|public",
+        "n|tbl|public.source",
+        "n|sch|public",
+        "n|col|public.chunk.source_id",
+        "n|col|public.source.id",
+        "e|uniqueness|public.source.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "source"
+      ],
+      "writes": [
+        "s|fk|public.source.source_workspace_id_workspace_id_fkey",
+        "n|fk|public.source.source_workspace_id_workspace_id_fkey",
+        "e|fk|public.source.source_workspace_id_workspace_id_fkey",
+        "n|con|public.source.source_workspace_id_workspace_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.source",
+        "n|sch|public",
+        "n|tbl|public.workspace",
+        "n|sch|public",
+        "n|col|public.source.workspace_id",
+        "n|col|public.workspace.id",
+        "e|uniqueness|public.workspace.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "chunk",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "source",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "source_status",
+        "values": [
+          "pending",
+          "processing",
+          "failed",
+          "ready"
+        ],
+        "entityType": "enums"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "source_type",
+        "values": [
+          "text",
+          "markdown",
+          "pdf",
+          "website",
+          "yt_url"
+        ],
+        "entityType": "enums"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "source_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "index",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "content",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "token_count",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "metadata",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "updated_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "workspace_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "source_type",
+        "type": "source_type",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "title",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "content",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "url",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "status",
+        "type": "source_status",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'pending'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "metadata",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "updated_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "chunk_sourceId_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "source_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "chunk_sourceId_index_unique",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "source_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "index",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "source_workspaceId_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "workspace_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "source_status_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "status",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "chunk_source_id_source_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "source_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "source",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "source_workspace_id_workspace_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "workspace_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "workspace",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "chunk",
+        "name": "chunk_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "source",
+        "name": "source_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

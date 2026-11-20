@@ -3,6 +3,7 @@ import repository, {
   type SourceFilters,
 } from "../repository/sources.repository.js";
 import workspaceRepository from "../repository/workspaces.repository.js";
+import { scrapeWebsiteByUrl } from "../lib/firecrawl.js";
 import type { CreateSourceInput } from "../validators/sources.validator.js";
 
 const WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND";
@@ -50,6 +51,19 @@ const createSources = async (
   input: CreateSourceInput,
 ) => {
   await requireOwnedWorkspace(userId, workspaceId);
+
+  if (input.sourceType === "website") {
+    const scraped = await scrapeWebsiteByUrl(input.url);
+
+    return repository.createSource(workspaceId, {
+      sourceType: "website",
+      title: input.title ?? scraped.title ?? new URL(scraped.url).hostname,
+      content: scraped.markdown,
+      url: scraped.url,
+      status: "ready",
+      metadata: scraped.metadata,
+    });
+  }
 
   return repository.createSource(workspaceId, input);
 };

@@ -5,7 +5,18 @@ import { sourceStatusEnum, sourceTypeEnum } from "../db/schema.js";
 const workspaceId = z.string().uuid("Invalid workspace id");
 const sourceId = z.string().uuid("Invalid source id");
 
-const supportedSourceTypes = ["text", "markdown"] as const;
+const httpUrl = z
+  .string()
+  .trim()
+  .url("Enter a valid website URL")
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      !url.username &&
+      !url.password
+    );
+  }, "Website URL must use HTTP or HTTPS and must not contain credentials");
 
 export const workspaceIdParamsSchema = z.object({
   workspaceId,
@@ -20,17 +31,23 @@ export const sourceParamsSchema = z.object({
   sourceId,
 });
 
-export const createSourceSchema = z
-  .object({
-    sourceType: z.enum(
-      supportedSourceTypes,
-      "Only text and markdown sources are supported",
-    ),
-    title: z.string().trim().min(1, "Title is required"),
-    content: z.string().trim().min(1, "Content is required"),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-  })
-  .strict();
+export const createSourceSchema = z.discriminatedUnion("sourceType", [
+  z
+    .object({
+      sourceType: z.enum(["text", "markdown"]),
+      title: z.string().trim().min(1, "Title is required"),
+      content: z.string().trim().min(1, "Content is required"),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      sourceType: z.literal("website"),
+      url: httpUrl,
+      title: z.string().trim().min(1, "Title cannot be empty").optional(),
+    })
+    .strict(),
+]);
 
 export const listSourcesQuerySchema = z
   .object({

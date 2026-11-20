@@ -56,6 +56,12 @@ export class TooManyRequestsError extends ApiError {
   }
 }
 
+export class BadGatewayError extends ApiError {
+  constructor(message: string, code = "BAD_GATEWAY") {
+    super(502, message, code);
+  }
+}
+
 export class InternalServerError extends ApiError {
   constructor(message: string, code = "INTERNAL_SERVER_ERROR") {
     super(500, message, code);
