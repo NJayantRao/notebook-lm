@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { defineRelations } from "drizzle-orm";
 import type { SourceMetadata } from "../types/source.js";
+import type { ConversationCitation } from "../types/conversation.js";
 
 export const sourceTypeEnum = pgEnum("source_type", [
   "text",
@@ -26,6 +27,8 @@ export const sourceStatusEnum = pgEnum("source_status", [
   "failed",
   "ready",
 ]);
+
+export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -200,8 +203,85 @@ export const chunk = pgTable(
   ]
 );
 
+export const conversation = pgTable(
+  "conversation",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+
+    title: text("title"),
+
+    summary: text("summary"),
+
+    summaryMessageCount: integer("summary_message_count").notNull().default(0),
+
+    summarizedAt: timestamp("summarized_at"),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("conversation_workspaceId_idx").on(table.workspaceId),
+    index("conversation_workspaceId_updatedAt_idx").on(
+      table.workspaceId,
+      table.updatedAt
+    ),
+  ]
+);
+
+export const message = pgTable(
+  "message",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+
+    sequence: integer("sequence").notNull(),
+
+    role: messageRoleEnum("role").notNull(),
+
+    content: text("content").notNull(),
+
+    sources: jsonb("sources")
+      .$type<ConversationCitation[]>()
+      .notNull()
+      .default([]),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("message_conversationId_sequence_unique").on(
+      table.conversationId,
+      table.sequence
+    ),
+  ]
+);
+
 export const relations = defineRelations(
-  { user, session, account, verification, workspace, source, chunk },
+  {
+    user,
+    session,
+    account,
+    verification,
+    workspace,
+    source,
+    chunk,
+    conversation,
+    message,
+  },
   (r) => ({
     user: {
       sessions: r.many.session({
@@ -243,6 +323,10 @@ export const relations = defineRelations(
         from: r.workspace.id,
         to: r.source.workspaceId,
       }),
+      conversations: r.many.conversation({
+        from: r.workspace.id,
+        to: r.conversation.workspaceId,
+      }),
     },
     source: {
       workspace: r.one.workspace({
@@ -255,10 +339,26 @@ export const relations = defineRelations(
         to: r.chunk.sourceId,
       }),
     },
+    conversation: {
+      workspace: r.one.workspace({
+        from: r.conversation.workspaceId,
+        to: r.workspace.id,
+      }),
+      messages: r.many.message({
+        from: r.conversation.id,
+        to: r.message.conversationId,
+      }),
+    },
     chunk: {
       source: r.one.source({
         from: r.chunk.sourceId,
         to: r.source.id,
+      }),
+    },
+    message: {
+      conversation: r.one.conversation({
+        from: r.message.conversationId,
+        to: r.conversation.id,
       }),
     },
   })

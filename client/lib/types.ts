@@ -51,3 +51,36 @@ export type SourcesPage = {
   sources: Source[];
   pagination: SourcesPagination;
 };
+
+export type ConversationCitation = {
+  number: number;
+  sourceId: string;
+  title: string;
+  sourceType: SourceType;
+  url: string | null;
+  chunkIndex: number;
+  excerpt: string;
+  score?: number;
+};
+
+export type ConversationMessage = {
+  id: string;
+  conversationId: string;
+  sequence: number;
+  role: "user" | "assistant";
+  content: string;
+  sources: ConversationCitation[];
+  createdAt: string;
+};
+
+export type Conversation = {
+  id: string;
+  workspaceId: string;
+  title: string | null;
+  summary: string | null;
+  summaryMessageCount: number;
+  summarizedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messages?: ConversationMessage[];
+};

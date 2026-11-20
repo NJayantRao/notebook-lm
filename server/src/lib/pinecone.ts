@@ -41,6 +41,36 @@ export const deleteSourceVectors = async (
   });
 };
 
+export const querySourceChunkVectors = async (
+  workspaceId: string,
+  vector: number[],
+  topK: number
+): Promise<Array<{ id: string; score?: number }>> => {
+  try {
+    const result = await getWorkspaceIndex(workspaceId).query({
+      vector,
+      topK,
+      includeMetadata: false,
+    });
+
+    return result.matches.flatMap((match) =>
+      match.id
+        ? [{ id: match.id, ...(match.score === undefined ? {} : { score: match.score }) }]
+        : []
+    );
+  } catch (error) {
+    if (error instanceof ServiceUnavailableError) {
+      throw error;
+    }
+
+    console.error("Pinecone source search failed:", error);
+    throw new ServiceUnavailableError(
+      "Workspace source search is unavailable.",
+      "PINECONE_SEARCH_FAILED"
+    );
+  }
+};
+
 export const upsertSourceChunkVectors = async (
   workspaceId: string,
   vectors: SourceChunkVector[]

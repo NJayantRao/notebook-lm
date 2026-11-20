@@ -1,0 +1,599 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "95c4820a-8246-4ef6-bbba-6dfafb0b8d8a",
+  "prevIds": [
+    "89db31a5-bd84-4c92-b64c-829837e78a56"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "message_role"
+      ],
+      "writes": [
+        "s|enum|public.message_role",
+        "n|enum|public.message_role",
+        "e|enum|public.message_role",
+        "n|type|public.message_role"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "conversation"
+      ],
+      "writes": [
+        "s|tbl|public.conversation",
+        "n|tbl|public.conversation",
+        "e|tbl|public.conversation",
+        "n|rel|public.conversation",
+        "n|type|public.conversation",
+        "n|rel|public.conversation_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "message"
+      ],
+      "writes": [
+        "s|tbl|public.message",
+        "n|tbl|public.message",
+        "e|tbl|public.message",
+        "n|rel|public.message",
+        "n|type|public.message",
+        "n|rel|public.message_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.message_role"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "conversation",
+        "conversation_workspaceId_idx"
+      ],
+      "writes": [
+        "s|idx|public.conversation_workspaceId_idx",
+        "n|idx|public.conversation_workspaceId_idx",
+        "e|idx|public.conversation_workspaceId_idx",
+        "n|rel|public.conversation_workspaceId_idx"
+      ],
+      "reads": [
+        "n|tbl|public.conversation",
+        "n|sch|public",
+        "n|col|public.conversation.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "conversation",
+        "conversation_workspaceId_updatedAt_idx"
+      ],
+      "writes": [
+        "s|idx|public.conversation_workspaceId_updatedAt_idx",
+        "n|idx|public.conversation_workspaceId_updatedAt_idx",
+        "e|idx|public.conversation_workspaceId_updatedAt_idx",
+        "n|rel|public.conversation_workspaceId_updatedAt_idx"
+      ],
+      "reads": [
+        "n|tbl|public.conversation",
+        "n|sch|public",
+        "n|col|public.conversation.workspace_id",
+        "n|col|public.conversation.updated_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "message",
+        "message_conversationId_sequence_unique"
+      ],
+      "writes": [
+        "s|idx|public.message_conversationId_sequence_unique",
+        "n|idx|public.message_conversationId_sequence_unique",
+        "e|idx|public.message_conversationId_sequence_unique",
+        "n|rel|public.message_conversationId_sequence_unique"
+      ],
+      "reads": [
+        "n|tbl|public.message",
+        "n|sch|public",
+        "n|col|public.message.conversation_id",
+        "n|col|public.message.sequence"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "conversation"
+      ],
+      "writes": [
+        "s|fk|public.conversation.conversation_workspace_id_workspace_id_fkey",
+        "n|fk|public.conversation.conversation_workspace_id_workspace_id_fkey",
+        "e|fk|public.conversation.conversation_workspace_id_workspace_id_fkey",
+        "n|con|public.conversation.conversation_workspace_id_workspace_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.conversation",
+        "n|sch|public",
+        "n|tbl|public.workspace",
+        "n|sch|public",
+        "n|col|public.conversation.workspace_id",
+        "n|col|public.workspace.id",
+        "e|uniqueness|public.workspace.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "message"
+      ],
+      "writes": [
+        "s|fk|public.message.message_conversation_id_conversation_id_fkey",
+        "n|fk|public.message.message_conversation_id_conversation_id_fkey",
+        "e|fk|public.message.message_conversation_id_conversation_id_fkey",
+        "n|con|public.message.message_conversation_id_conversation_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.message",
+        "n|sch|public",
+        "n|tbl|public.conversation",
+        "n|sch|public",
+        "n|col|public.message.conversation_id",
+        "n|col|public.conversation.id",
+        "e|uniqueness|public.conversation.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "conversation",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "message",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "message_role",
+        "values": [
+          "user",
+          "assistant"
+        ],
+        "entityType": "enums"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "workspace_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "title",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "summary",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "summary_message_count",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "summarized_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "updated_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "conversation_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "sequence",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "role",
+        "type": "message_role",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "content",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "sources",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "conversation_workspaceId_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "workspace_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "conversation_workspaceId_updatedAt_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "workspace_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "updated_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "message_conversationId_sequence_unique",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "conversation_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "sequence",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "conversation_workspace_id_workspace_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "workspace_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "workspace",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "message_conversation_id_conversation_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "conversation_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "conversation",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "conversation",
+        "name": "conversation_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "message",
+        "name": "message_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

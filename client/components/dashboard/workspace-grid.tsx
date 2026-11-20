@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Folder,
   Plus,
@@ -57,14 +58,13 @@ function WorkspaceCardItem({ workspace }: { workspace: Workspace }) {
 
       <div className="relative mt-5 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
         <span className="text-xs text-muted-foreground/70">Workspace</span>
-        <span
-          className="inline-flex cursor-default items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[#42D8F5] opacity-80"
-          title="Workspace view is coming soon"
-          aria-disabled="true"
+        <Link
+          href={`/dashboard/workspaces/${workspace.id}`}
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[#42D8F5] transition-colors hover:bg-white/[0.05]"
         >
           Open workspace
           <ArrowUpRight className="h-3.5 w-3.5" />
-        </span>
+        </Link>
       </div>
     </Card>
   );

@@ -5,6 +5,7 @@ import corsMiddleware from "./middlewares/cors.js";
 import errorMiddleware from "./middlewares/error-handler.js";
 import workspaceRoutes from "./routes/workspaces.route.js";
 import sourceRoutes from "./routes/sources.route.js";
+import conversationRoutes from "./routes/conversations.route.js";
 import { inngest } from "./lib/inngest.js";
 import { serve } from "inngest/express";
 import { indexSourceFunction } from "./functions/index-source.function.js";
@@ -23,6 +24,7 @@ app.use(
 
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/workspace/:workspaceId", sourceRoutes);
+app.use("/api/workspace/:workspaceId/conversations", conversationRoutes);
 
 app.get("/", (_req, res) => {
   res.send("Hello, World!");
