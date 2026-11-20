@@ -1,14 +1,12 @@
 import { api, type ApiEnvelope } from "@/lib/api";
 import type { Source, SourcesPage } from "@/lib/types";
 
-export type CreateWebsiteSourceInput = {
-  sourceType: "website";
+export type ImportWebsiteSourceInput = {
   url: string;
   title?: string;
 };
 
-export type CreateYouTubeSourceInput = {
-  sourceType: "yt_url";
+export type ImportYouTubeSourceInput = {
   url: string;
   title?: string;
 };
@@ -60,12 +58,12 @@ export async function listSources(
   );
 }
 
-export async function createWebsiteSource(
+export async function importWebsiteSource(
   workspaceId: string,
-  input: CreateWebsiteSourceInput
+  input: ImportWebsiteSourceInput
 ): Promise<Source> {
   const res = await api.post<ApiEnvelope<Source>>(
-    `/api/workspace/${workspaceId}/`,
+    `/api/workspace/${workspaceId}/import/website`,
     input
   );
   if (!res.data.data) {
@@ -74,12 +72,12 @@ export async function createWebsiteSource(
   return res.data.data;
 }
 
-export async function createYouTubeSource(
+export async function importYouTubeSource(
   workspaceId: string,
-  input: CreateYouTubeSourceInput
+  input: ImportYouTubeSourceInput
 ): Promise<Source> {
   const res = await api.post<ApiEnvelope<Source>>(
-    `/api/workspace/${workspaceId}/`,
+    `/api/workspace/${workspaceId}/import/youtube`,
     input
   );
   if (!res.data.data) {

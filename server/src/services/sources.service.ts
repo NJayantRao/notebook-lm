@@ -9,7 +9,11 @@ import { scrapeWebsiteByUrl } from "../lib/firecrawl.js";
 import { getYouTubeTranscript, getYouTubeVideoId } from "../lib/youtube.js";
 import { removeUploadedPdf, verifyPdfFile } from "../lib/multer.js";
 import { extractPdfText } from "../lib/pdf.js";
-import type { CreateSourceInput } from "../validators/sources.validator.js";
+import type {
+  CreateSourceInput,
+  ImportWebsiteSourceInput,
+  ImportYouTubeSourceInput,
+} from "../validators/sources.validator.js";
 
 const WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND";
 const SOURCE_NOT_FOUND = "SOURCE_NOT_FOUND";
@@ -50,6 +54,43 @@ const listAllSources = async (
   };
 };
 
+const saveWebsiteImport = async (
+  workspaceId: string,
+  input: ImportWebsiteSourceInput
+) => {
+  const scraped = await scrapeWebsiteByUrl(input.url);
+
+  return repository.createWebsiteSource(workspaceId, {
+    title: input.title ?? scraped.title ?? new URL(scraped.url).hostname,
+    content: scraped.markdown,
+    url: scraped.url,
+    status: "ready",
+    metadata: scraped.metadata,
+  });
+};
+
+const saveYouTubeImport = async (
+  workspaceId: string,
+  input: ImportYouTubeSourceInput
+) => {
+  const videoId = getYouTubeVideoId(input.url);
+  if (!videoId) {
+    throw new BadRequestError(
+      "Enter a valid YouTube video URL.",
+      "INVALID_YOUTUBE_URL"
+    );
+  }
+
+  const content = await getYouTubeTranscript(videoId);
+  return repository.createYouTubeSource(workspaceId, {
+    title: input.title ?? `YouTube video ${videoId}`,
+    content,
+    url: `https://www.youtube.com/watch?v=${videoId}`,
+    status: "ready",
+    metadata: { videoId },
+  });
+};
+
 const createSources = async (
   userId: string,
   workspaceId: string,
@@ -58,39 +99,32 @@ const createSources = async (
   await requireOwnedWorkspace(userId, workspaceId);
 
   if (input.sourceType === "website") {
-    const scraped = await scrapeWebsiteByUrl(input.url);
-
-    return repository.createSource(workspaceId, {
-      sourceType: "website",
-      title: input.title ?? scraped.title ?? new URL(scraped.url).hostname,
-      content: scraped.markdown,
-      url: scraped.url,
-      status: "ready",
-      metadata: scraped.metadata,
-    });
+    return saveWebsiteImport(workspaceId, input);
   }
 
   if (input.sourceType === "yt_url") {
-    const videoId = getYouTubeVideoId(input.url);
-    if (!videoId) {
-      throw new BadRequestError(
-        "Enter a valid YouTube video URL.",
-        "INVALID_YOUTUBE_URL"
-      );
-    }
-
-    const content = await getYouTubeTranscript(videoId);
-    return repository.createSource(workspaceId, {
-      sourceType: "yt_url",
-      title: input.title ?? `YouTube video ${videoId}`,
-      content,
-      url: `https://www.youtube.com/watch?v=${videoId}`,
-      status: "ready",
-      metadata: { videoId },
-    });
+    return saveYouTubeImport(workspaceId, input);
   }
 
   return repository.createSource(workspaceId, input);
+};
+
+const importWebsiteSource = async (
+  userId: string,
+  workspaceId: string,
+  input: ImportWebsiteSourceInput
+) => {
+  await requireOwnedWorkspace(userId, workspaceId);
+  return saveWebsiteImport(workspaceId, input);
+};
+
+const importYouTubeSource = async (
+  userId: string,
+  workspaceId: string,
+  input: ImportYouTubeSourceInput
+) => {
+  await requireOwnedWorkspace(userId, workspaceId);
+  return saveYouTubeImport(workspaceId, input);
 };
 
 const uploadPdfSource = async (
@@ -161,6 +195,8 @@ const deleteSource = async (
 export default {
   listAllSources,
   createSources,
+  importWebsiteSource,
+  importYouTubeSource,
   uploadPdfSource,
   bulkDeleteSources,
   deleteSource,

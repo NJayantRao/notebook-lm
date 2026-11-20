@@ -28,6 +28,20 @@ const youtubeUrl = z
     "Enter a valid YouTube video URL"
   );
 
+export const importWebsiteSourceSchema = z
+  .object({
+    url: httpUrl,
+    title: z.string().trim().min(1, "Title cannot be empty").optional(),
+  })
+  .strict();
+
+export const importYouTubeSourceSchema = z
+  .object({
+    url: youtubeUrl,
+    title: z.string().trim().min(1, "Title cannot be empty").optional(),
+  })
+  .strict();
+
 export const workspaceIdParamsSchema = z.object({
   workspaceId,
 });
@@ -77,4 +91,10 @@ export const listSourcesQuerySchema = z
   .strict();
 
 export type CreateSourceInput = z.infer<typeof createSourceSchema>;
+export type ImportWebsiteSourceInput = z.infer<
+  typeof importWebsiteSourceSchema
+>;
+export type ImportYouTubeSourceInput = z.infer<
+  typeof importYouTubeSourceSchema
+>;
 export type ListSourcesQuery = z.infer<typeof listSourcesQuerySchema>;

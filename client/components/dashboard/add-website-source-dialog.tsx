@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/lib/api";
 import type { Workspace } from "@/lib/types";
-import { createWebsiteSource } from "@/services/source.service";
+import { importWebsiteSource } from "@/services/source.service";
 
 export function AddWebsiteSourceDialog({
   open,
@@ -40,8 +40,7 @@ export function AddWebsiteSourceDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       const trimmedTitle = title.trim();
-      return createWebsiteSource(workspaceId, {
-        sourceType: "website",
+      return importWebsiteSource(workspaceId, {
         url: url.trim(),
         ...(trimmedTitle ? { title: trimmedTitle } : {}),
       });

@@ -7,6 +7,8 @@ import validate from "../utils/validate.js";
 import service from "../services/sources.service.js";
 import {
   createSourceSchema,
+  importWebsiteSourceSchema,
+  importYouTubeSourceSchema,
   listSourcesQuerySchema,
   sourceParamsSchema,
   workspaceIdParamsSchema,
@@ -34,6 +36,34 @@ const createSources = async (req: Request, res: Response) => {
   res
     .status(201)
     .json(new ApiResponse(201, "Source created successfully", result));
+};
+
+const importWebsite = async (req: Request, res: Response) => {
+  const { workspaceId } = validate(workspaceIdParamsSchema, req.params);
+  const input = validate(importWebsiteSourceSchema, req.body);
+  const result = await service.importWebsiteSource(
+    req.user.id,
+    workspaceId,
+    input
+  );
+
+  res
+    .status(201)
+    .json(new ApiResponse(201, "Website imported successfully", result));
+};
+
+const importYouTube = async (req: Request, res: Response) => {
+  const { workspaceId } = validate(workspaceIdParamsSchema, req.params);
+  const input = validate(importYouTubeSourceSchema, req.body);
+  const result = await service.importYouTubeSource(
+    req.user.id,
+    workspaceId,
+    input
+  );
+
+  res
+    .status(201)
+    .json(new ApiResponse(201, "YouTube video imported successfully", result));
 };
 
 const validateUploadWorkspace = (
@@ -92,6 +122,8 @@ const deleteSource = async (req: Request, res: Response) => {
 export default {
   listAllSources,
   createSources,
+  importWebsite,
+  importYouTube,
   validateUploadWorkspace,
   uploadPdf,
   bulkDeleteSources,

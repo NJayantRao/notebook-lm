@@ -101,6 +101,18 @@ const createSource = async (
   return result;
 };
 
+const createWebsiteSource = (
+  workspaceId: string,
+  data: Omit<CreateSourceData, "sourceType">
+): Promise<Source> =>
+  createSource(workspaceId, { ...data, sourceType: "website" });
+
+const createYouTubeSource = (
+  workspaceId: string,
+  data: Omit<CreateSourceData, "sourceType">
+): Promise<Source> =>
+  createSource(workspaceId, { ...data, sourceType: "yt_url" });
+
 const deleteAllSourcesByWorkspaceId = async (
   workspaceId: string
 ): Promise<number> => {
@@ -128,6 +140,8 @@ export default {
   findSourcesByWorkspaceId,
   countSourcesByWorkspaceId,
   createSource,
+  createWebsiteSource,
+  createYouTubeSource,
   deleteAllSourcesByWorkspaceId,
   deleteSourceByWorkspaceIdAndId,
 };

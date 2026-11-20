@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/lib/api";
 import type { Workspace } from "@/lib/types";
-import { createYouTubeSource } from "@/services/source.service";
+import { importYouTubeSource } from "@/services/source.service";
 
 export function AddYouTubeSourceDialog({
   open,
@@ -40,8 +40,7 @@ export function AddYouTubeSourceDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       const trimmedTitle = title.trim();
-      return createYouTubeSource(workspaceId, {
-        sourceType: "yt_url",
+      return importYouTubeSource(workspaceId, {
         url: url.trim(),
         ...(trimmedTitle ? { title: trimmedTitle } : {}),
       });
