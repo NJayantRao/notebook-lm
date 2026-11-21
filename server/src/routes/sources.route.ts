@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import AsyncHandler from "../utils/async-handler.js";
+import { sourceRateLimit } from "../middlewares/rate-limit.js";
 import { uploadPdfFile } from "../lib/multer.js";
 
 import controller from "../controllers/sources.controller.js";
@@ -9,12 +10,21 @@ import controller from "../controllers/sources.controller.js";
 const router: Router = Router({ mergeParams: true });
 
 router.get("/", AsyncHandler(controller.listAllSources));
-router.post("/", AsyncHandler(controller.createSources));
-router.post("/import/website", AsyncHandler(controller.importWebsite));
-router.post("/import/youtube", AsyncHandler(controller.importYouTube));
+router.post("/", sourceRateLimit, AsyncHandler(controller.createSources));
+router.post(
+  "/import/website",
+  sourceRateLimit,
+  AsyncHandler(controller.importWebsite)
+);
+router.post(
+  "/import/youtube",
+  sourceRateLimit,
+  AsyncHandler(controller.importYouTube)
+);
 router.post(
   "/upload",
   controller.validateUploadWorkspace,
+  sourceRateLimit,
   uploadPdfFile,
   AsyncHandler(controller.uploadPdf)
 );
