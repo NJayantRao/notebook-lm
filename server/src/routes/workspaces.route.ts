@@ -1,13 +1,10 @@
 import { Router } from "express";
 
-import { requireAuth } from "../middlewares/require-auth.js";
 import AsyncHandler from "../utils/async-handler.js";
 
 import controller from "../controllers/workspaces.controller.js";
 
 const router: Router = Router();
-
-router.use(requireAuth);
 
 router.get("/", AsyncHandler(controller.listWorkspaces));
 router.post("/", AsyncHandler(controller.createWorkspace));

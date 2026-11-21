@@ -14,6 +14,7 @@ import { refreshUserMemoryFunction } from "./functions/refresh-user-memory.funct
 import memoryRoutes from "./routes/memories.route.js";
 import { checkDatabaseConnection } from "./config/db.js";
 import { NotFoundError } from "./utils/api-error.js";
+import { requireAuth } from "./middlewares/require-auth.js";
 
 const app: Express = express();
 
@@ -32,9 +33,11 @@ app.use(
   })
 );
 
+app.use("/api/workspaces", requireAuth);
+app.use("/api/workspace", requireAuth);
 app.use("/api/workspaces", workspaceRoutes);
-app.use("/api/workspace/:workspaceId", sourceRoutes);
 app.use("/api/workspace/:workspaceId/conversations", conversationRoutes);
+app.use("/api/workspace/:workspaceId", sourceRoutes);
 app.use("/api/memories", memoryRoutes);
 
 app.get("/health", async (_req, res) => {
