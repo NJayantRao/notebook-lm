@@ -46,7 +46,7 @@ export function LoginForm() {
         return;
       }
 
-      router.push("/dashboard");
+      router.replace("/dashboard");
       router.refresh();
     } catch (err) {
       setError(getErrorMessage(err));

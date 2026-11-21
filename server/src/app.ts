@@ -35,6 +35,7 @@ app.use(
 
 app.use("/api/workspaces", requireAuth);
 app.use("/api/workspace", requireAuth);
+app.use("/api/memories", requireAuth);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/workspace/:workspaceId/conversations", conversationRoutes);
 app.use("/api/workspace/:workspaceId", sourceRoutes);

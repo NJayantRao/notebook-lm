@@ -14,14 +14,10 @@ import {
 import { SiteLogo } from "@/components/layout/site-logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { authClient } from "@/lib/auth-client";
+import { authClient, type AuthUser } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
-type SidebarUser = {
-  name?: string | null;
-  email?: string | null;
-  image?: string | null;
-};
+type SidebarUser = Pick<AuthUser, "name" | "email" | "image">;
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },

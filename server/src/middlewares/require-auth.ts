@@ -23,8 +23,6 @@ export const requireAuth = async (
 
     next();
   } catch (error) {
-    console.error("Authentication error:", error);
-
-    return next(new UnauthorizedError("Authentication failed"));
+    return next(error);
   }
 };

@@ -5,6 +5,7 @@ import db from "../db/index.js";
 import { account, session, user, verification } from "../db/schema.js";
 
 export const auth = betterAuth({
+  baseURL: ENV.BETTER_AUTH_URL,
   trustedOrigins: [ENV.CLIENT_URL],
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -12,8 +13,8 @@ export const auth = betterAuth({
   }),
   socialProviders: {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      clientId: ENV.GOOGLE_CLIENT_ID,
+      clientSecret: ENV.GOOGLE_CLIENT_SECRET,
     },
   },
 });
