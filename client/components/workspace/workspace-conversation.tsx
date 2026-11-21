@@ -19,7 +19,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthSession } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api";
-import type { Conversation } from "@/lib/types";
+import type { Conversation, ConversationMessage } from "@/lib/types";
 import {
   createConversation,
   getConversation,
@@ -34,6 +34,30 @@ function formatConversationDate(value: string) {
     day: "numeric",
   }).format(new Date(value));
 }
+
+type ConversationCacheKey = readonly [string, string, string | null];
+
+type SendMutationContext = {
+  cacheKey: ConversationCacheKey;
+  previous: Conversation | undefined;
+  optimisticId: string;
+  previousSelectedId: string | null;
+};
+
+const mergeMessages = (
+  current: ConversationMessage[] | undefined,
+  incoming: ConversationMessage[],
+  removedId?: string
+): ConversationMessage[] => {
+  const combined = [
+    ...(current ?? []).filter((message) => message.id !== removedId),
+    ...incoming,
+  ];
+  return combined.filter(
+    (message, index) =>
+      combined.findIndex((candidate) => candidate.id === message.id) === index
+  );
+};
 
 export function WorkspaceConversation({
   workspaceId,
@@ -67,7 +91,10 @@ export function WorkspaceConversation({
       }
       return getConversation(workspaceId, selectedConversationId);
     },
-    enabled: !!session && selectedConversationId !== null,
+    enabled:
+      !!session &&
+      selectedConversationId !== null &&
+      !selectedConversationId.startsWith("optimistic-"),
   });
 
   const sendMutation = useMutation({
@@ -80,18 +107,89 @@ export function WorkspaceConversation({
             webSearchEnabled
           )
         : createConversation(workspaceId, message, webSearchEnabled),
-    onSuccess: async (conversation: Conversation) => {
+    onMutate: async (message: string) => {
+      const optimisticId = `optimistic-${crypto.randomUUID()}`;
+      const targetId = selectedConversationId ?? optimisticId;
+      const cacheKey = ["conversation", workspaceId, targetId] as const;
+
+      await queryClient.cancelQueries({ queryKey: cacheKey });
+      const previous = queryClient.getQueryData<Conversation>(cacheKey);
+      const createdAt = new Date().toISOString();
+      const optimisticMessage: ConversationMessage = {
+        id: optimisticId,
+        conversationId: targetId,
+        sequence: (previous?.messages?.length ?? 0) + 1,
+        role: "user",
+        content: message,
+        sources: [],
+        createdAt,
+      };
+
+      queryClient.setQueryData<Conversation>(cacheKey, (current) => {
+        const base: Conversation = current ?? {
+          id: targetId,
+          workspaceId,
+          title: null,
+          summary: null,
+          summaryMessageCount: 0,
+          summarizedAt: null,
+          createdAt,
+          updatedAt: createdAt,
+          messages: [],
+        };
+        return {
+          ...base,
+          messages: [...(base.messages ?? []), optimisticMessage],
+        };
+      });
+
+      if (!selectedConversationId) {
+        setSelectedConversationId(targetId);
+      }
+
+      return {
+        cacheKey,
+        previous,
+        optimisticId,
+        previousSelectedId: selectedConversationId,
+      };
+    },
+    onSuccess: async (
+      conversation,
+      _message,
+      context?: SendMutationContext
+    ) => {
+      const cached = context
+        ? queryClient.getQueryData<Conversation>(context.cacheKey)
+        : undefined;
+      const merged = mergeMessages(
+        cached?.messages,
+        conversation.messages ?? [],
+        context?.optimisticId
+      );
+      const nextKey = ["conversation", workspaceId, conversation.id] as const;
+
+      queryClient.setQueryData<Conversation>(nextKey, {
+        ...conversation,
+        messages: merged,
+      });
+      if (context && context.cacheKey[2] !== conversation.id) {
+        queryClient.removeQueries({ queryKey: context.cacheKey });
+      }
+
       setSelectedConversationId(conversation.id);
       setDraft("");
-      queryClient.setQueryData(
-        ["conversation", workspaceId, conversation.id],
-        conversation
-      );
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["conversations", workspaceId],
-        }),
-      ]);
+      await queryClient.invalidateQueries({
+        queryKey: ["conversations", workspaceId],
+      });
+    },
+    onError: (_error, _message, context?: SendMutationContext) => {
+      if (!context) {
+        return;
+      }
+
+      queryClient.setQueryData(context.cacheKey, context.previous);
+      setSelectedConversationId(context.previousSelectedId);
     },
   });
 
