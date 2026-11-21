@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FileText,
   FileCode,
@@ -10,9 +12,31 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  MoreHorizontal,
+  RotateCw,
+  Trash2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { getErrorMessage } from "@/lib/api";
 import type { SourceListItem, SourceStatus, SourceType } from "@/lib/types";
+import { deleteSource, reindexSource } from "@/services/source.service";
 
 function formatDate(value: string) {
   try {
@@ -88,6 +112,150 @@ function typeLabel(type: SourceType) {
   }
 }
 
+function SourceRow({ source }: { source: SourceListItem }) {
+  const queryClient = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["recent-sources"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["sources", source.workspaceId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["workspace", source.workspaceId],
+    });
+  };
+
+  const retryMutation = useMutation({
+    mutationFn: () => reindexSource(source.workspaceId, source.id),
+    onSuccess: invalidate,
+    onError: (error) => setActionError(getErrorMessage(error)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteSource(source.workspaceId, source.id),
+    onSuccess: async () => {
+      setConfirmDelete(false);
+      await invalidate();
+    },
+    onError: (error) => setActionError(getErrorMessage(error)),
+  });
+
+  const meta = statusMeta(source.status);
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-[#42D8F5]">
+            <SourceIcon type={source.sourceType} />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">
+              {source.title}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>{typeLabel(source.sourceType)}</span>
+              <span className="text-white/20">•</span>
+              <span>Added {formatDate(source.createdAt)}</span>
+            </div>
+            {source.status === "failed" && source.processingError && (
+              <p
+                className="mt-1 line-clamp-2 text-xs text-red-300"
+                title={source.processingError}
+              >
+                {source.processingError}
+              </p>
+            )}
+            {actionError && (
+              <p role="alert" className="mt-1 text-xs text-red-300">
+                {actionError}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${meta.className}`}
+          >
+            {meta.icon}
+            {meta.label}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground"
+                  aria-label={`Actions for ${source.title}`}
+                />
+              }
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {source.status === "failed" && (
+                <DropdownMenuItem
+                  disabled={retryMutation.isPending || deleteMutation.isPending}
+                  onSelect={() => {
+                    setActionError(null);
+                    retryMutation.mutate();
+                  }}
+                >
+                  <RotateCw className="h-4 w-4" />
+                  Retry
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={retryMutation.isPending || deleteMutation.isPending}
+                onSelect={() => {
+                  setActionError(null);
+                  setConfirmDelete(true);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <AlertDialog
+        open={confirmDelete}
+        onOpenChange={(next) => {
+          if (!deleteMutation.isPending) setConfirmDelete(next);
+        }}
+      >
+        <AlertDialogContent className="border-white/10 bg-[#101522] text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this source?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              &quot;{source.title}&quot; and its indexed content will be removed.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 bg-transparent">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500/80 hover:bg-red-500"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 export function RecentSources({
   sources,
   loading,
@@ -140,48 +308,9 @@ export function RecentSources({
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {sources.map((source) => {
-              const meta = statusMeta(source.status);
-              return (
-                <div
-                  key={source.id}
-                  className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-[#42D8F5]">
-                      <SourceIcon type={source.sourceType} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {source.title}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>{typeLabel(source.sourceType)}</span>
-                        <span className="text-white/20">•</span>
-                        <span>Added {formatDate(source.createdAt)}</span>
-                      </div>
-                      {source.status === "failed" &&
-                        source.processingError && (
-                          <p
-                            className="mt-1 line-clamp-2 text-xs text-red-300"
-                            title={source.processingError}
-                          >
-                            {source.processingError}
-                          </p>
-                        )}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center sm:justify-end">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${meta.className}`}
-                    >
-                      {meta.icon}
-                      {meta.label}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {sources.map((source) => (
+              <SourceRow key={source.id} source={source} />
+            ))}
           </div>
         )}
       </Card>

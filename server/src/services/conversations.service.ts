@@ -6,6 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 
+import { ENV } from "../config/env.js";
 import {
   BadGatewayError,
   NotFoundError,
@@ -14,6 +15,7 @@ import {
 import conversationsRepository, {
   type ConversationDetail,
   type ConversationListItem,
+  type RetrievedSourceChunk,
 } from "../repository/conversations.repository.js";
 import workspaceRepository from "../repository/workspaces.repository.js";
 import {
@@ -21,6 +23,7 @@ import {
   CHAT_MODEL,
   createEmbeddings,
   generateChatAnswerFromPrompt,
+  rewriteSearchQuery,
   streamChatAnswer,
 } from "../lib/openai.js";
 import { querySourceChunkVectors } from "../lib/pinecone.js";
@@ -32,7 +35,8 @@ import type { CreateConversationInput } from "../validators/conversations.valida
 
 const WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND";
 const CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND";
-const TOP_K = 6;
+const RETRIEVAL_TOP_K = 20;
+const ANSWER_SOURCE_COUNT = 6;
 const MEMORY_REFRESH_INTERVAL = 16;
 const NO_SOURCES_MESSAGE =
   "I couldn't find any indexed source excerpts in this workspace that can answer your question. Add sources and wait for indexing to finish, then try again.";
@@ -48,6 +52,8 @@ export type StreamCitation = {
   chunkIndex: number | null;
   excerpt: string;
   score?: number;
+  page?: number;
+  startSeconds?: number;
 };
 
 type StreamMetadata = {
@@ -74,6 +80,17 @@ const formatSourceContext = (sources: ConversationCitation[]): string =>
     )
     .join("\n\n");
 
+// Citations are useful to readers but confusing to the model when the same
+// answer is later reused as conversation history.
+const cleanHistory = (
+  history: { role: "user" | "assistant"; content: string }[]
+): { role: "user" | "assistant"; content: string }[] =>
+  history.map((turn) =>
+    turn.role === "assistant"
+      ? { ...turn, content: turn.content.replace(/\[\d+\]/g, "") }
+      : turn
+  );
+
 const ensureWorkspaceAccess = async (
   userId: string,
   workspaceId: string
@@ -94,6 +111,23 @@ type AnswerContext = {
   fixedAnswer?: string;
 };
 
+// Memory is an optional enhancement: it must never break an answer.
+const loadUserMemories = async (
+  userId: string,
+  question: string
+): Promise<string[]> => {
+  if (!ENV.MEMORY_ENABLED) {
+    return [];
+  }
+
+  try {
+    return await searchUserMemories(userId, question);
+  } catch (error) {
+    console.error("User memory search failed; continuing without memories:", error);
+    return [];
+  }
+};
+
 // All retrieval (question embedding, Pinecone search, and Postgres hydration)
 // happens here before either chat path starts generating tokens.
 const prepareAnswer = async (
@@ -108,11 +142,12 @@ const prepareAnswer = async (
     userId
   );
   const chatModel = resolveChatModel(workspace?.model);
+  const promptHistory = cleanHistory(history);
 
   if (webSearch) {
     const [response, userMemories] = await Promise.all([
       searchWeb(question),
-      searchUserMemories(userId, question),
+      loadUserMemories(userId, question),
     ]);
     const sources: ConversationCitation[] = response.results.map(
       (result, index) => ({
@@ -141,7 +176,7 @@ const prepareAnswer = async (
       chatModel,
       prompt: buildChatPrompt(
         question,
-        history.slice(-10),
+        promptHistory.slice(-10),
         sourceContext,
         "web",
         userMemories
@@ -149,9 +184,13 @@ const prepareAnswer = async (
     };
   }
 
+  // Follow-up questions such as "what about page 3?" are poor embedding
+  // queries. Rewrite them from recent history, but always embed at most one
+  // extra query and fall back to the original question on any failure.
+  const retrievalQuery = await rewriteSearchQuery(question, promptHistory);
   let queryVector: number[] | undefined;
   try {
-    [queryVector] = await createEmbeddings([question]);
+    [queryVector] = await createEmbeddings([retrievalQuery]);
   } catch (error) {
     if (error instanceof ServiceUnavailableError) {
       throw error;
@@ -174,18 +213,45 @@ const prepareAnswer = async (
   const matches = await querySourceChunkVectors(
     workspaceId,
     queryVector,
-    TOP_K
+    RETRIEVAL_TOP_K
   );
+  type ScoredMatch = { id: string; score: number };
+  const scoredMatches: ScoredMatch[] = matches.flatMap((match) =>
+    match.score !== undefined && match.score >= ENV.RETRIEVAL_MIN_SCORE
+      ? [{ id: match.id, score: match.score }]
+      : []
+  );
+  scoredMatches.sort((left, right) => right.score - left.score);
+
   const chunks = await conversationsRepository.findReadyChunksByIds(
     workspaceId,
-    matches.map((match) => match.id)
+    scoredMatches.map((match) => match.id)
   );
   const chunksById = new Map(chunks.map((chunk) => [chunk.id, chunk]));
-  const sources = matches
-    .flatMap((match) => {
-      const chunk = chunksById.get(match.id);
-      return chunk ? [{ chunk, score: match.score }] : [];
-    })
+  type RetrievedMatch = { chunk: RetrievedSourceChunk; score: number };
+  const candidates: RetrievedMatch[] = scoredMatches.flatMap((match) => {
+    const chunk = chunksById.get(match.id);
+    return chunk ? [{ chunk, score: match.score }] : [];
+  });
+
+  // Adjacent chunks from the same source usually repeat the same answer.
+  // Keep the higher-scoring chunk and drop its immediate neighbour.
+  const kept: RetrievedMatch[] = [];
+  for (const candidate of candidates) {
+    const duplicateIndex = kept.findIndex(
+      (item) =>
+        item.chunk.sourceId === candidate.chunk.sourceId &&
+        Math.abs(item.chunk.chunkIndex - candidate.chunk.chunkIndex) === 1
+    );
+    if (duplicateIndex < 0) {
+      kept.push(candidate);
+    } else if (candidate.score > kept[duplicateIndex]!.score) {
+      kept[duplicateIndex] = candidate;
+    }
+  }
+
+  const sources = kept
+    .slice(0, ANSWER_SOURCE_COUNT)
     .map(({ chunk, score }, index): ConversationCitation => ({
       number: index + 1,
       sourceId: chunk.sourceId,
@@ -195,6 +261,10 @@ const prepareAnswer = async (
       chunkIndex: chunk.chunkIndex,
       excerpt: chunk.content,
       ...(score === undefined ? {} : { score }),
+      ...(chunk.page === undefined ? {} : { page: chunk.page }),
+      ...(chunk.startSeconds === undefined
+        ? {}
+        : { startSeconds: chunk.startSeconds }),
     }));
 
   if (sources.length === 0) {
@@ -206,10 +276,10 @@ const prepareAnswer = async (
     chatModel,
     prompt: buildChatPrompt(
       question,
-      history.slice(-10),
+      promptHistory.slice(-10),
       formatSourceContext(sources),
       "workspace",
-      await searchUserMemories(userId, question)
+      await loadUserMemories(userId, question)
     ),
   };
 };
@@ -242,7 +312,7 @@ const enqueueMemoryRefresh = async (
   conversationId: string,
   userMessageCount: number
 ): Promise<void> => {
-  if (userMessageCount % MEMORY_REFRESH_INTERVAL !== 0) {
+  if (!ENV.MEMORY_ENABLED || userMessageCount % MEMORY_REFRESH_INTERVAL !== 0) {
     return;
   }
 
@@ -259,10 +329,6 @@ const enqueueMemoryRefresh = async (
     console.error(
       `Could not queue memory refresh for conversation ${conversationId}:`,
       error
-    );
-    throw new ServiceUnavailableError(
-      "Your message was saved, but its memory update could not be queued.",
-      "MEMORY_REFRESH_QUEUE_FAILED"
     );
   }
 };
@@ -320,11 +386,15 @@ const createConversation = async (
     assistantContent: response.answer,
     sources: response.sources,
   });
-  await enqueueMemoryRefresh(
-    userId,
-    persisted.conversation.id,
-    persisted.userMessageCount
-  );
+  try {
+    await enqueueMemoryRefresh(
+      userId,
+      persisted.conversation.id,
+      persisted.userMessageCount
+    );
+  } catch (error) {
+    console.error("Could not refresh user memory:", error);
+  }
   return persisted.conversation;
 };
 
@@ -358,11 +428,15 @@ const sendConversationMessage = async (
     assistantContent: response.answer,
     sources: response.sources,
   });
-  await enqueueMemoryRefresh(
-    userId,
-    persisted.conversation.id,
-    persisted.userMessageCount
-  );
+  try {
+    await enqueueMemoryRefresh(
+      userId,
+      persisted.conversation.id,
+      persisted.userMessageCount
+    );
+  } catch (error) {
+    console.error("Could not refresh user memory:", error);
+  }
   return persisted.conversation;
 };
 
@@ -378,6 +452,10 @@ const toStreamCitations = (
     chunkIndex: "chunkIndex" in item ? item.chunkIndex : null,
     excerpt: item.excerpt,
     ...(item.score === undefined ? {} : { score: item.score }),
+    ...("page" in item && item.page !== undefined ? { page: item.page } : {}),
+    ...("startSeconds" in item && item.startSeconds !== undefined
+      ? { startSeconds: item.startSeconds }
+      : {}),
   }));
 
 const streamAnswer = async (
@@ -460,28 +538,35 @@ const streamAnswer = async (
         return;
       }
 
-      const persisted = await conversationsRepository.persistExchange({
-        workspaceId,
-        ...(conversationId
-          ? { conversationId }
-          : {
-              newConversationId: activeConversationId,
-              ...(title ? { title } : {}),
-            }),
-        userContent: input.message,
-        assistantContent: answer,
-        sources: prepared.sources,
-      });
-
       try {
-        await enqueueMemoryRefresh(
-          userId,
-          persisted.conversation.id,
-          persisted.userMessageCount
-        );
+        const persisted = await conversationsRepository.persistExchange({
+          workspaceId,
+          ...(conversationId
+            ? { conversationId }
+            : {
+                newConversationId: activeConversationId,
+                ...(title ? { title } : {}),
+              }),
+          userContent: input.message,
+          assistantContent: answer,
+          sources: prepared.sources,
+        });
+
+        try {
+          await enqueueMemoryRefresh(
+            userId,
+            persisted.conversation.id,
+            persisted.userMessageCount
+          );
+        } catch (error) {
+          console.error(
+            `Could not queue memory refresh after streaming for conversation ${persisted.conversation.id}:`,
+            error
+          );
+        }
       } catch (error) {
         console.error(
-          `Could not queue memory refresh after streaming for conversation ${persisted.conversation.id}:`,
+          `Could not persist streamed exchange for conversation ${activeConversationId}:`,
           error
         );
       }

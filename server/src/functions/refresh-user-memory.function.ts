@@ -62,18 +62,17 @@ export const refreshUserMemoryFunction = inngest.createFunction(
       return { status: "skipped", reason: "conversation-not-found" };
     }
 
-    if (
-      messages.length !== 32 ||
-      messages.filter((message) => message.role === "user").length !== 16
-    ) {
+    // Only user-authored messages are stored in the third-party memory service.
+    const userMessages = messages.filter((message) => message.role === "user");
+    if (userMessages.length !== 16) {
       throw new Error(
-        `Expected 16 user/assistant exchanges for conversation ${conversationId}, ` +
-          `received ${messages.length} messages.`
+        `Expected 16 user messages for conversation ${conversationId}, ` +
+          `received ${userMessages.length}.`
       );
     }
 
     const memories = await step.run("upsert-user-memory", () =>
-      addUserMemory(userId, messages, {
+      addUserMemory(userId, userMessages, {
         source: "conversation",
         conversationId,
         throughUserMessageCount,

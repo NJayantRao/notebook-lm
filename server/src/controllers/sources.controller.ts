@@ -98,6 +98,13 @@ const uploadPdf = async (req: Request, res: Response) => {
 
 const bulkDeleteSources = async (req: Request, res: Response) => {
   const { workspaceId } = validate(workspaceIdParamsSchema, req.params);
+  if (req.query.confirm !== "true") {
+    throw new BadRequestError(
+      "Bulk deletion requires ?confirm=true.",
+      "BULK_DELETE_CONFIRMATION_REQUIRED"
+    );
+  }
+
   const deletedCount = await service.bulkDeleteSources(
     req.user.id,
     workspaceId
@@ -119,6 +126,15 @@ const deleteSource = async (req: Request, res: Response) => {
     .json(new ApiResponse(200, "Source deleted successfully", result));
 };
 
+const reindexSource = async (req: Request, res: Response) => {
+  const { workspaceId, sourceId } = validate(sourceParamsSchema, req.params);
+  const result = await service.reindexSource(req.user.id, workspaceId, sourceId);
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, "Source reindexing started", result));
+};
+
 export default {
   listAllSources,
   createSources,
@@ -128,4 +144,5 @@ export default {
   uploadPdf,
   bulkDeleteSources,
   deleteSource,
+  reindexSource,
 };

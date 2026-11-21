@@ -1,8 +1,9 @@
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
-import { encodingForModel } from "@langchain/core/utils/tiktoken";
+import { encodingForModel } from "js-tiktoken";
 
 import type { SourceRecord } from "../repository/sources.repository.js";
 import sourceChunksRepository, {
+  type NewSourceChunk,
   type SourceChunkContent,
 } from "../repository/source-chunks.repository.js";
 import { createEmbeddings, EMBEDDING_MODEL } from "../lib/openai.js";
@@ -11,36 +12,132 @@ import {
   upsertSourceChunkVectors,
 } from "../lib/pinecone.js";
 
-const CHUNK_SIZE = 800;
-const CHUNK_OVERLAP = 100;
+const CHUNK_SIZE = 450;
+const CHUNK_OVERLAP = 60;
+
+const HEADING_LINE = /^\s{0,3}#{1,6}\s+\S/;
+
+const nearestHeading = (content: string, chunkText: string): string | undefined => {
+  const firstLine = chunkText.split(/\r?\n/)[0]?.trim();
+  if (!firstLine) {
+    return undefined;
+  }
+
+  const position = content.indexOf(firstLine);
+  if (position < 0) {
+    return undefined;
+  }
+
+  const headings = content
+    .slice(0, position)
+    .split(/\r?\n/)
+    .filter((line) => HEADING_LINE.test(line) && line.trim());
+  return headings.at(-1)?.trim();
+};
 
 const createSourceChunks = async (source: SourceRecord): Promise<number> => {
-  const content = source.content?.trim();
-  if (!content) {
+  const content = source.content;
+  if (!content?.trim()) {
     throw new Error(`Source ${source.id} does not contain indexable text.`);
   }
 
-  const encoding = await encodingForModel(EMBEDDING_MODEL);
+  const encoding = encodingForModel(EMBEDDING_MODEL);
   const splitterOptions = {
     chunkSize: CHUNK_SIZE,
     chunkOverlap: CHUNK_OVERLAP,
     lengthFunction: (text: string) => encoding.encode(text).length,
   };
-  const splitter =
+  const createSplitter = () =>
     source.sourceType === "markdown" || source.sourceType === "website"
       ? RecursiveCharacterTextSplitter.fromLanguage("markdown", splitterOptions)
       : new RecursiveCharacterTextSplitter(splitterOptions);
-  const texts = (await splitter.splitText(content))
-    .map((text) => text.trim())
-    .filter(Boolean);
 
-  const chunks = texts.map((text, index) => ({
+  const splitText = async (text: string): Promise<string[]> => {
+    const chunks = await createSplitter().splitText(text);
+    return chunks.map((chunk) => chunk.trim()).filter(Boolean);
+  };
+
+  const toChunk = (
+    text: string,
+    index: number,
+    metadata: Record<string, unknown>
+  ): NewSourceChunk => ({
     sourceId: source.id,
     index,
     content: text,
     tokenCount: encoding.encode(text).length,
-    metadata: { sourceType: source.sourceType },
-  }));
+    metadata,
+  });
+
+  // New PDFs keep page boundaries with a form feed. Each page is split on its
+  // own, blank pages are skipped, and the chunk index continues across pages.
+  if (source.sourceType === "pdf" && content.includes("\f")) {
+    const pages = content.split("\f");
+    const chunks: NewSourceChunk[] = [];
+
+    for (const [pageIndex, pageText] of pages.entries()) {
+      if (!pageText.trim()) {
+        continue;
+      }
+
+      for (const text of await splitText(pageText)) {
+        chunks.push(
+          toChunk(text, chunks.length, {
+            sourceType: source.sourceType,
+            page: pageIndex + 1,
+          })
+        );
+      }
+    }
+
+    return sourceChunksRepository.replaceSourceChunks(source.id, chunks);
+  }
+
+  // YouTube transcripts are stored as time-grouped blocks separated by form
+  // feeds; the matching start offsets live in the source metadata.
+  if (source.sourceType === "yt_url" && content.includes("\f")) {
+    const blocks = content.split("\f");
+    const starts = Array.isArray(source.metadata.transcriptStarts)
+      ? source.metadata.transcriptStarts
+      : [];
+    const chunks: NewSourceChunk[] = [];
+
+    for (const [blockIndex, blockText] of blocks.entries()) {
+      if (!blockText.trim()) {
+        continue;
+      }
+
+      const rawStart = starts[blockIndex];
+      const startSeconds =
+        typeof rawStart === "number" && Number.isFinite(rawStart) && rawStart >= 0
+          ? rawStart
+          : undefined;
+
+      for (const text of await splitText(blockText)) {
+        chunks.push(
+          toChunk(text, chunks.length, {
+            sourceType: source.sourceType,
+            ...(startSeconds === undefined ? {} : { startSeconds }),
+          })
+        );
+      }
+    }
+
+    return sourceChunksRepository.replaceSourceChunks(source.id, chunks);
+  }
+
+  // Non-PDF sources and legacy PDFs stored before page-aware extraction are
+  // indexed as a single block with no page metadata.
+  const wantsHeading =
+    source.sourceType === "markdown" || source.sourceType === "website";
+  const texts = await splitText(content);
+  const chunks = texts.map((text, index) => {
+    const heading = wantsHeading ? nearestHeading(content, text) : undefined;
+    return toChunk(text, index, {
+      sourceType: source.sourceType,
+      ...(heading ? { heading } : {}),
+    });
+  });
 
   return sourceChunksRepository.replaceSourceChunks(source.id, chunks);
 };
@@ -61,9 +158,15 @@ const indexSourceChunkBatch = async (
   source: SourceRecord,
   chunks: SourceChunkContent[]
 ): Promise<void> => {
-  const embeddings = await createEmbeddings(
-    chunks.map((sourceChunk) => sourceChunk.content)
-  );
+  const embeddingInputs = chunks.map((sourceChunk) => {
+    const heading =
+      typeof sourceChunk.metadata.heading === "string" &&
+      sourceChunk.metadata.heading.trim()
+        ? sourceChunk.metadata.heading.trim()
+        : undefined;
+    return `${source.title}\n\n${heading ? `${heading}\n\n` : ""}${sourceChunk.content}`;
+  });
+  const embeddings = await createEmbeddings(embeddingInputs);
   if (embeddings.length !== chunks.length) {
     throw new Error("Embedding count did not match the source chunk count.");
   }

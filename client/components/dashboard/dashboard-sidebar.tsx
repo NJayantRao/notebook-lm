@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -165,12 +166,14 @@ function SidebarBody({
 
 export function DashboardSidebar({ user }: { user?: SidebarUser }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
+      queryClient.clear();
       await authClient.signOut();
     } finally {
       router.replace("/login");

@@ -11,6 +11,15 @@ const YOUTUBE_HOSTS = new Set([
   "youtu.be",
 ]);
 
+const TARGET_GROUP_SECONDS = 75;
+const MIN_GROUP_SECONDS = 60;
+const MAX_GROUP_SECONDS = 90;
+
+export type YouTubeTranscript = {
+  content: string;
+  startSeconds: number[];
+};
+
 export const getYouTubeVideoId = (value: string): string | null => {
   let url: URL;
 
@@ -45,9 +54,16 @@ export const getYouTubeVideoId = (value: string): string | null => {
   return videoId && YOUTUBE_VIDEO_ID_PATTERN.test(videoId) ? videoId : null;
 };
 
+const toSeconds = (value: number): number => {
+  if (!Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+  return value > 10_000 ? value / 1000 : value;
+};
+
 export const getYouTubeTranscript = async (
   videoId: string
-): Promise<string> => {
+): Promise<YouTubeTranscript> => {
   let transcript: Awaited<ReturnType<typeof fetchTranscript>>;
   try {
     transcript = await fetchTranscript(videoId);
@@ -59,17 +75,50 @@ export const getYouTubeTranscript = async (
     );
   }
 
-  const content = transcript
-    .map((segment) => segment.text.trim())
-    .filter(Boolean)
-    .join(" ");
+  const segments = transcript
+    .map((segment) => ({
+      text: segment.text.trim(),
+      start: toSeconds(segment.offset),
+      duration: toSeconds(segment.duration),
+    }))
+    .filter((segment) => segment.text)
+    .sort((left, right) => left.start - right.start);
 
-  if (!content) {
+  if (segments.length === 0) {
     throw new BadGatewayError(
       "This YouTube video does not have a readable transcript.",
       "YOUTUBE_TRANSCRIPT_EMPTY"
     );
   }
 
-  return content;
+  const groups: Array<{ start: number; texts: string[] }> = [];
+  let current: { start: number; texts: string[] } | undefined;
+
+  for (const segment of segments) {
+    if (!current) {
+      current = { start: segment.start, texts: [segment.text] };
+      continue;
+    }
+
+    const elapsed = segment.start - current.start;
+    const nextEnd = segment.start + segment.duration;
+    if (
+      elapsed >= TARGET_GROUP_SECONDS ||
+      (elapsed >= MIN_GROUP_SECONDS &&
+        nextEnd - current.start > MAX_GROUP_SECONDS)
+    ) {
+      groups.push(current);
+      current = { start: segment.start, texts: [segment.text] };
+    } else {
+      current.texts.push(segment.text);
+    }
+  }
+  if (current) {
+    groups.push(current);
+  }
+
+  return {
+    content: groups.map((group) => group.texts.join(" ")).join("\f"),
+    startSeconds: groups.map((group) => group.start),
+  };
 };

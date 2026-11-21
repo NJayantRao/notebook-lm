@@ -8,6 +8,7 @@ const baseURL =
 
 export const api = axios.create({
   baseURL,
+  timeout: 60_000,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -37,6 +38,16 @@ export function getErrorMessage(error: unknown): string {
       "Something went wrong. Please try again."
     );
   }
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    try {
+      const parsed = JSON.parse(error.message) as { message?: unknown };
+      if (typeof parsed?.message === "string" && parsed.message) {
+        return parsed.message;
+      }
+    } catch {
+      // Not a JSON error message; fall through to the plain message.
+    }
+    return error.message;
+  }
   return "Something went wrong. Please try again.";
 }

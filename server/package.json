@@ -25,9 +25,7 @@
   "type": "module",
   "dependencies": {
     "@ai-sdk/openai": "^4.0.122",
-    "@langchain/community": "^1.1.29",
     "@langchain/core": "^1.4.2",
-    "@langchain/openai": "^1.8.4",
     "@langchain/textsplitters": "^1.0.2",
     "@pinecone-database/pinecone": "^9.2.0",
     "@tavily/core": "^1.1.0",
@@ -41,7 +39,7 @@
     "firecrawl": "^4.54.0",
     "helmet": "^8.3.0",
     "inngest": "^4.26.2",
-    "langchain": "^1.6.7",
+    "js-tiktoken": "^1.0.21",
     "mem0ai": "^3.3.1",
     "multer": "^2.5.0",
     "openai": "^7.60.0",

@@ -8,6 +8,27 @@ const optionalApiKey = z.preprocess(
   z.string().trim().min(1).optional()
 );
 
+const optionalBoolean = z.preprocess(
+  (value) => {
+    if (value === "" || value === undefined) return undefined;
+    if (value === true || value === "1" || value === "true") return true;
+    if (value === false || value === "0" || value === "false") return false;
+    return value;
+  },
+  z.boolean().optional()
+);
+
+const booleanWithDefault = (defaultValue: boolean) =>
+  z.preprocess(
+    (value) => {
+      if (value === "" || value === undefined) return defaultValue;
+      if (value === true || value === "1" || value === "true") return true;
+      if (value === false || value === "0" || value === "false") return false;
+      return value;
+    },
+    z.boolean().default(defaultValue)
+  );
+
 const envSchema = z.object({
   PORT: z.preprocess(
     (value) => (value === "" ? undefined : value),
@@ -20,11 +41,27 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().trim().min(1),
   GOOGLE_CLIENT_SECRET: z.string().trim().min(1),
   FIRECRAWL_API_KEY: z.string().trim().min(1),
-  TAVILY_API_KEY: z.string().trim().min(1),
-  MEM0_API_KEY: z.string().trim().min(1),
+  TAVILY_API_KEY: optionalApiKey,
+  MEM0_API_KEY: optionalApiKey,
   OPENAI_API_KEY: optionalApiKey,
   PINECONE_API_KEY: optionalApiKey,
   PINECONE_INDEX: optionalApiKey,
+  INNGEST_DEV: optionalBoolean,
+  INNGEST_SIGNING_KEY: optionalApiKey,
+  INNGEST_EVENT_KEY: optionalApiKey,
+  RETRIEVAL_MIN_SCORE: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().min(0).max(1).default(0.2)
+  ),
+  MEMORY_ENABLED: booleanWithDefault(false),
+  MAX_SOURCES_PER_WORKSPACE: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().default(50)
+  ),
+  DAILY_MESSAGE_LIMIT: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().default(200)
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

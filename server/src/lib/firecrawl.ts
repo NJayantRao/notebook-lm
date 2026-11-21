@@ -23,11 +23,14 @@ export const scrapeWebsiteByUrl = async (
     );
   }
 
-  const firecrawl = new Firecrawl({ apiKey });
+  const firecrawl = new Firecrawl({ apiKey, timeoutMs: 30_000 });
   let result;
 
   try {
-    result = await firecrawl.scrape(url, { formats: ["markdown"] });
+    result = await firecrawl.scrape(url, {
+      formats: ["markdown"],
+      onlyMainContent: true,
+    });
   } catch (error) {
     console.error("Firecrawl website scrape failed:", error);
     throw new BadGatewayError(

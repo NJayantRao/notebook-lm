@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import axios from "axios";
 import Link from "next/link";
 import Markdown, { type Components } from "react-markdown";
 import { useChat } from "@ai-sdk/react";
@@ -18,6 +19,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { AddMemoryDialog } from "@/components/workspace/add-memory-dialog";
+import { MemoriesDialog } from "@/components/workspace/memories-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,12 +29,53 @@ import type { ConversationMessage, StreamCitation } from "@/lib/types";
 import { getConversation, listConversations } from "@/services/conversation.service";
 import { getWorkspaceById } from "@/services/workspace.service";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+
 function formatConversationDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
 }
+
+function formatClipTime(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(secs)}`
+    : `${minutes}:${pad(secs)}`;
+}
+
+function citationHref(citation: StreamCitation): string | undefined {
+  if (!citation.url) return undefined;
+  if (citation.startSeconds === undefined) return citation.url;
+  try {
+    const url = new URL(citation.url, window.location.origin);
+    url.searchParams.set("t", `${Math.floor(citation.startSeconds)}s`);
+    return url.toString();
+  } catch {
+    return citation.url;
+  }
+}
+
+function citationSuffix(citation: StreamCitation): string {
+  const parts: string[] = [];
+  if (citation.page !== undefined) parts.push(`p. ${citation.page}`);
+  if (citation.startSeconds !== undefined) {
+    parts.push(formatClipTime(citation.startSeconds));
+  }
+  return parts.length ? ` · ${parts.join(" · ")}` : "";
+}
+
+const retryNotFound = (failureCount: number, error: unknown) =>
+  axios.isAxiosError(error) && error.response?.status === 404
+    ? failureCount < 3
+    : false;
+
+const retryNotFoundDelay = () => 500;
 
 type ChatMetadata = {
   citations?: StreamCitation[];
@@ -66,20 +109,50 @@ const getText = (message: ChatUIMessage): string =>
 const getCitations = (message: ChatUIMessage): StreamCitation[] =>
   message.metadata?.citations ?? [];
 
-// react-markdown escapes raw HTML by default; these overrides only add styling
-// and keep generated links safe to open in a new tab.
-const markdownComponents: Components = {
-  a: ({ children, href, title }) => (
-    <a
-      href={href}
-      title={title}
-      target="_blank"
-      rel="noreferrer noopener"
-      className="break-words text-[#42D8F5] underline underline-offset-2"
-    >
-      {children}
-    </a>
-  ),
+const citedNumbers = (text: string): Set<number> => {
+  const numbers = new Set<number>();
+  for (const match of text.matchAll(/\[(\d+)\]/g)) {
+    const value = Number(match[1]);
+    if (Number.isInteger(value) && value > 0) numbers.add(value);
+  }
+  return numbers;
+};
+
+// react-markdown escapes raw HTML by default; these overrides only add styling,
+// link citation badges to their chips, and keep external links safe to open.
+const buildMarkdownComponents = (messageId: string): Components => ({
+  a: ({ children, href, title }) => {
+    if (typeof href === "string" && href.startsWith("#cite-")) {
+      const number = Number(href.slice("#cite-".length));
+      return (
+        <a
+          href={href}
+          title={title ?? `Go to source ${number}`}
+          onClick={(event) => {
+            event.preventDefault();
+            document
+              .getElementById(`${messageId}-${number}`)
+              ?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
+          className="mx-0.5 inline-flex min-w-5 items-center justify-center rounded-md bg-[#42D8F5]/15 px-1.5 py-0.5 align-baseline text-xs font-medium text-[#42D8F5] no-underline"
+        >
+          {children}
+        </a>
+      );
+    }
+
+    return (
+      <a
+        href={href}
+        title={title}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="break-words text-[#42D8F5] underline underline-offset-2"
+      >
+        {children}
+      </a>
+    );
+  },
   p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
   ul: ({ children }) => (
     <ul className="mb-3 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>
@@ -122,7 +195,7 @@ const markdownComponents: Components = {
   td: ({ children }) => (
     <td className="border border-white/10 px-2 py-1 align-top">{children}</td>
   ),
-};
+});
 
 function StreamingChat({
   workspaceId,
@@ -145,15 +218,15 @@ function StreamingChat({
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatUIMessage>({
-        api: "/api/chat",
+        api: `${API_URL}/api/chat`,
         credentials: "include",
         prepareSendMessagesRequest: ({ messages }) => {
           const last = messages[messages.length - 1];
           const text = last ? getText(last) : "";
           return {
             api: conversationId
-              ? `/api/workspace/${workspaceId}/conversations/${conversationId}/messages/stream`
-              : `/api/workspace/${workspaceId}/conversations/stream`,
+              ? `${API_URL}/api/workspace/${workspaceId}/conversations/${conversationId}/messages/stream`
+              : `${API_URL}/api/workspace/${workspaceId}/conversations/stream`,
             body: { message: text, webSearch: webSearchEnabled },
           };
         },
@@ -180,10 +253,12 @@ function StreamingChat({
   });
 
   const streaming = status === "submitted" || status === "streaming";
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageTextLength = lastMessage ? getText(lastMessage).length : 0;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, status]);
+  }, [lastMessageTextLength, messages.length, status]);
 
   const submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -196,7 +271,7 @@ function StreamingChat({
 
   return (
     <>
-      <div className="flex-1 space-y-4 overflow-y-auto pb-5">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-5">
         {messages.length === 0 && (
           <div className="flex min-h-64 flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-[#42D8F5]">
@@ -211,7 +286,16 @@ function StreamingChat({
         )}
 
         {messages.map((message) => {
-          const citations = getCitations(message);
+          const text = getText(message);
+          const cited = citedNumbers(text);
+          const citations = getCitations(message).filter((citation) =>
+            cited.has(citation.number)
+          );
+          const markdown = text.replace(
+            /\[(\d+)\]/g,
+            (_, number: string) => `[$1](#cite-${number})`
+          );
+
           return (
             <article
               key={message.id}
@@ -225,13 +309,11 @@ function StreamingChat({
                 {message.role === "user" ? "You" : "Notebook"}
               </p>
               {message.role === "user" ? (
-                <p className="whitespace-pre-wrap text-sm leading-7">
-                  {getText(message)}
-                </p>
+                <p className="whitespace-pre-wrap text-sm leading-7">{text}</p>
               ) : (
                 <div className="text-sm leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  <Markdown components={markdownComponents}>
-                    {getText(message)}
+                  <Markdown components={buildMarkdownComponents(message.id)}>
+                    {markdown}
                   </Markdown>
                 </div>
               )}
@@ -240,15 +322,17 @@ function StreamingChat({
                   {citations.map((citation) => (
                     <span
                       key={`${message.id}-${citation.number}`}
-                      title={citation.excerpt}
-                      className="inline-flex items-center gap-1 rounded-lg bg-black/10 px-2 py-1 text-xs"
+                      id={`${message.id}-${citation.number}`}
+                      title={`${citation.excerpt}${citationSuffix(citation)}`}
+                      className="inline-flex scroll-mt-24 items-center gap-1 rounded-lg bg-black/10 px-2 py-1 text-xs"
                     >
                       <span className="font-medium text-[#42D8F5]">
                         [{citation.number}] {citation.title}
+                        {citationSuffix(citation)}
                       </span>
-                      {citation.url && (
+                      {citationHref(citation) && (
                         <a
-                          href={citation.url}
+                          href={citationHref(citation)}
                           target="_blank"
                           rel="noreferrer noopener"
                           className="text-muted-foreground hover:text-foreground"
@@ -275,7 +359,7 @@ function StreamingChat({
         <div ref={messagesEndRef} aria-hidden="true" />
       </div>
 
-      <form onSubmit={submitMessage} className="mx-auto w-full max-w-4xl">
+      <form onSubmit={submitMessage} className="mx-auto w-full shrink-0 max-w-4xl">
         {error && (
           <p role="alert" className="mb-2 text-sm text-red-300">
             {getErrorMessage(error)}
@@ -285,6 +369,16 @@ function StreamingChat({
           <Textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
             placeholder="Ask a question about your sources..."
             aria-label="Your question"
             rows={2}
@@ -352,8 +446,14 @@ export function WorkspaceConversation({
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
   >(null);
-  const [chatId, setChatId] = useState(() => `new-${crypto.randomUUID()}`);
+  const [createdConversationId, setCreatedConversationId] = useState<
+    string | null
+  >(null);
+  const [chatSessionKey, setChatSessionKey] = useState(
+    () => `new-${crypto.randomUUID()}`
+  );
   const [addMemoryOpen, setAddMemoryOpen] = useState(false);
+  const [memoriesOpen, setMemoriesOpen] = useState(false);
 
   const workspaceQuery = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -364,6 +464,8 @@ export function WorkspaceConversation({
     queryKey: ["conversations", workspaceId],
     queryFn: () => listConversations(workspaceId),
     enabled: !!session,
+    retry: retryNotFound,
+    retryDelay: retryNotFoundDelay,
   });
   const conversationQuery = useQuery({
     queryKey: ["conversation", workspaceId, selectedConversationId],
@@ -374,20 +476,21 @@ export function WorkspaceConversation({
       return getConversation(workspaceId, selectedConversationId);
     },
     enabled: !!session && selectedConversationId !== null,
+    retry: retryNotFound,
+    retryDelay: retryNotFoundDelay,
   });
 
   const selectedConversationReady =
     selectedConversationId === null ||
+    selectedConversationId === createdConversationId ||
     conversationQuery.data?.id === selectedConversationId;
-  const activeChatId = selectedConversationReady
-    ? (selectedConversationId ?? chatId)
-    : `loading-${selectedConversationId}`;
   const initialMessages = selectedConversationReady
     ? toUIMessages(conversationQuery.data?.messages ?? [])
     : [];
 
   const handleFinishMessage = async (conversationId: string | null) => {
     if (conversationId) {
+      setCreatedConversationId(conversationId);
       setSelectedConversationId(conversationId);
     }
 
@@ -405,22 +508,25 @@ export function WorkspaceConversation({
 
   const startNewConversation = () => {
     setSelectedConversationId(null);
-    setChatId(`new-${crypto.randomUUID()}`);
+    setCreatedConversationId(null);
+    setChatSessionKey(`new-${crypto.randomUUID()}`);
   };
 
   const selectConversation = (conversationId: string) => {
+    setCreatedConversationId(null);
     setSelectedConversationId(conversationId);
+    setChatSessionKey(conversationId);
   };
 
   const conversations = conversationsQuery.data ?? [];
 
   return (
-    <div className="min-h-screen bg-app-radial text-foreground">
-      <div className="flex min-h-screen">
+    <div className="h-dvh overflow-hidden bg-app-radial text-foreground">
+      <div className="flex h-dvh">
         <DashboardSidebar user={session?.user} />
 
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 bg-[#05070d]/40 px-4 pb-4 pt-16 backdrop-blur-sm sm:px-6 lg:pt-6">
+        <div className="flex h-dvh min-w-0 flex-1 flex-col">
+          <header className="flex flex-wrap shrink-0 items-center justify-between gap-3 border-b border-white/5 bg-[#05070d]/40 px-4 pb-4 pt-16 backdrop-blur-sm sm:px-6 lg:pt-6">
             <div className="min-w-0">
               <Link
                 href="/dashboard"
@@ -446,6 +552,13 @@ export function WorkspaceConversation({
                 Add memory
               </Button>
               <Button
+                variant="ghost"
+                onClick={() => setMemoriesOpen(true)}
+                className="rounded-xl text-muted-foreground hover:text-foreground"
+              >
+                Memories
+              </Button>
+              <Button
                 onClick={startNewConversation}
                 className="btn-gradient-primary rounded-xl"
               >
@@ -456,7 +569,7 @@ export function WorkspaceConversation({
           </header>
 
           <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <aside className="border-b border-white/5 p-3 lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r">
+            <aside className="min-h-0 border-b border-white/5 p-3 lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
               <p className="px-2 pb-2 pt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Conversation history
               </p>
@@ -497,7 +610,7 @@ export function WorkspaceConversation({
               )}
             </aside>
 
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col px-4 py-4 sm:px-6 lg:px-8">
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 lg:px-8">
               {!selectedConversationReady ? (
                 conversationQuery.isError ? (
                   <Card className="border-red-500/20 bg-red-500/5 p-4 text-sm text-red-200">
@@ -510,10 +623,10 @@ export function WorkspaceConversation({
                 )
               ) : (
                 <StreamingChat
-                  key={activeChatId}
+                  key={chatSessionKey}
                   workspaceId={workspaceId}
                   conversationId={selectedConversationId}
-                  chatId={activeChatId}
+                  chatId={chatSessionKey}
                   initialMessages={initialMessages}
                   onFinishMessage={handleFinishMessage}
                 />
@@ -523,6 +636,7 @@ export function WorkspaceConversation({
         </div>
       </div>
       <AddMemoryDialog open={addMemoryOpen} onOpenChange={setAddMemoryOpen} />
+      <MemoriesDialog open={memoriesOpen} onOpenChange={setMemoriesOpen} />
     </div>
   );
 }

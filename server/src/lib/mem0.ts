@@ -6,6 +6,7 @@ import {
   NotFoundError,
   ServiceUnavailableError,
 } from "../utils/api-error.js";
+import { withTimeout } from "./timeout.js";
 
 let client: MemoryClient | undefined;
 
@@ -34,7 +35,7 @@ const callMem0 = async <T>(
   request: () => Promise<T>
 ): Promise<T> => {
   try {
-    return await request();
+    return await withTimeout(request(), 30_000, `Mem0 ${operation}`);
   } catch (error) {
     console.error(`Mem0 ${operation} failed:`, error);
     throw new BadGatewayError(

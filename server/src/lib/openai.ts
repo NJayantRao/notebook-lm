@@ -28,7 +28,7 @@ const getOpenAIClient = (): OpenAI => {
     );
   }
 
-  client ??= new OpenAI({ apiKey });
+  client ??= new OpenAI({ apiKey, timeout: 30_000 });
   return client;
 };
 
@@ -104,6 +104,39 @@ export const buildChatPrompt = (
       },
     ],
   };
+};
+
+// Follow-up questions are rewritten into standalone retrieval queries using
+// only the most recent turns. Any failure falls back to the original question.
+export const rewriteSearchQuery = async (
+  question: string,
+  history: ConversationTurn[]
+): Promise<string> => {
+  if (history.length === 0) {
+    return question;
+  }
+
+  try {
+    const openai = getOpenAIClient();
+    const recentHistory = history
+      .slice(-6)
+      .map((turn) => `${turn.role}: ${turn.content}`)
+      .join("\n");
+    const response = await openai.responses.create({
+      model: CHAT_MODEL,
+      instructions:
+        "Rewrite the latest user question as a standalone search query for a document search engine. " +
+        "Use only the supplied conversation turns to resolve pronouns and references. " +
+        "Return only the rewritten query, with no explanation or quotes.",
+      input: `${recentHistory}\nuser: ${question}`,
+      max_output_tokens: 120,
+    });
+    const rewritten = response.output_text.trim().split(/\r?\n/)[0]?.trim();
+    return rewritten || question;
+  } catch (error) {
+    console.error("Question rewrite failed; using the original question:", error);
+    return question;
+  }
 };
 
 export const generateChatAnswerFromPrompt = async (

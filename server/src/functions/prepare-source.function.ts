@@ -1,3 +1,5 @@
+import { NonRetriableError } from "inngest";
+
 import { inngest } from "../lib/inngest.js";
 import { getYouTubeVideoId } from "../lib/youtube.js";
 import sourcesRepository from "../repository/sources.repository.js";
@@ -42,6 +44,35 @@ const requireStringMetadata = (
   const value = metadata[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };
+
+const errorCode = (error: unknown): string =>
+  typeof error === "object" && error !== null && "code" in error
+    ? String(error.code)
+    : "";
+
+const isNonRetriablePdfError = (error: unknown): boolean =>
+  [
+    "PDF_EXTRACTION_FAILED",
+    "PDF_TEXT_NOT_FOUND",
+    "INVALID_PDF_SIGNATURE",
+    "ENOENT",
+    "EACCES",
+  ].includes(errorCode(error));
+
+const isHttpUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      !url.username &&
+      !url.password
+    );
+  } catch {
+    return false;
+  }
+};
+
+type SaveResult = { saved: boolean; length: number };
 
 export const prepareSourceFunction = inngest.createFunction(
   {
@@ -98,29 +129,32 @@ export const prepareSourceFunction = inngest.createFunction(
       if (source.sourceType === "website") {
         const url = source.url ?? requireStringMetadata(source.metadata, "importedFrom");
         if (!url) {
-          throw new Error(`Website source ${sourceId} does not have a URL.`);
+          throw new NonRetriableError(`Website source ${sourceId} does not have a URL.`);
+        }
+        if (!isHttpUrl(url)) {
+          throw new NonRetriableError(`Website source ${sourceId} has an invalid URL.`);
         }
 
-        const scraped = await step.run("scrape-website", () =>
-          preparation.scrapeWebsite(url)
-        );
-        const useScrapedTitle =
-          source.metadata.useScrapedTitle === true && Boolean(scraped.title);
-        const metadata: SourceMetadata = {
-          ...withoutInternalMetadata(source.metadata),
-          ...withoutInternalMetadata(scraped.metadata),
-          importedFrom: url,
-        };
+        const result: SaveResult = await step.run("scrape-and-save-website", async () => {
+          const scraped = await preparation.scrapeWebsite(url);
+          const useScrapedTitle =
+            source.metadata.useScrapedTitle === true && Boolean(scraped.title);
+          const metadata: SourceMetadata = {
+            ...withoutInternalMetadata(source.metadata),
+            ...withoutInternalMetadata(scraped.metadata),
+            importedFrom: url,
+          };
 
-        const updated = await step.run("save-website-content", () =>
-          sourcesRepository.updateSourceRecord(sourceId, {
+          const updated = await sourcesRepository.updateSourceRecord(sourceId, {
             content: scraped.markdown,
             url: scraped.url,
             ...(useScrapedTitle && scraped.title ? { title: scraped.title } : {}),
             metadata,
-          })
-        );
-        if (!updated) {
+          });
+
+          return { saved: Boolean(updated), length: scraped.markdown.length };
+        });
+        if (!result.saved) {
           return { sourceId, status: "skipped" };
         }
       } else if (source.sourceType === "yt_url") {
@@ -128,16 +162,22 @@ export const prepareSourceFunction = inngest.createFunction(
           requireStringMetadata(source.metadata, "videoId") ??
           (source.url ? getYouTubeVideoId(source.url) : null);
         if (!videoId) {
-          throw new Error(`YouTube source ${sourceId} does not have a video ID.`);
+          throw new NonRetriableError(`YouTube source ${sourceId} does not have a valid video ID.`);
         }
 
-        const content = await step.run("fetch-youtube-transcript", () =>
-          preparation.fetchYouTubeTranscript(videoId)
-        );
-        const updated = await step.run("save-youtube-content", () =>
-          sourcesRepository.updateSourceRecord(sourceId, { content })
-        );
-        if (!updated) {
+        const result: SaveResult = await step.run("fetch-and-save-youtube", async () => {
+          const transcript = await preparation.fetchYouTubeTranscript(videoId);
+          const updated = await sourcesRepository.updateSourceRecord(sourceId, {
+            content: transcript.content,
+            metadata: {
+              ...withoutInternalMetadata(source.metadata),
+              transcriptStarts: transcript.startSeconds,
+            },
+          });
+
+          return { saved: Boolean(updated), length: transcript.content.length };
+        });
+        if (!result.saved) {
           return { sourceId, status: "skipped" };
         }
       } else if (source.sourceType === "pdf") {
@@ -146,32 +186,42 @@ export const prepareSourceFunction = inngest.createFunction(
           "storedFileName"
         );
         if (!storedFileName) {
-          throw new Error(`PDF source ${sourceId} does not have a stored file.`);
+          throw new NonRetriableError(`PDF source ${sourceId} does not have a stored file.`);
         }
 
         const filePath = preparation.resolveStoredPdfPath(storedFileName);
         if (!filePath) {
-          throw new Error(`PDF source ${sourceId} has an invalid stored file.`);
+          throw new NonRetriableError(`PDF source ${sourceId} has an invalid stored file.`);
         }
 
-        await step.run("verify-pdf-file", () => preparation.verifyPdf(filePath));
-        const extracted = await step.run("extract-pdf-text", () =>
-          preparation.extractPdf(filePath)
-        );
-        const updated = await step.run("save-pdf-content", () =>
-          sourcesRepository.updateSourceRecord(sourceId, {
-            content: extracted.text,
-            metadata: {
-              ...withoutInternalMetadata(source.metadata),
-              pageCount: extracted.pageCount,
-            },
-          })
-        );
-        if (!updated) {
+        const result: SaveResult = await step.run("extract-and-save-pdf", async () => {
+          try {
+            await preparation.verifyPdf(filePath);
+            const extracted = await preparation.extractPdf(filePath);
+            const updated = await sourcesRepository.updateSourceRecord(sourceId, {
+              content: extracted.text,
+              metadata: {
+                ...withoutInternalMetadata(source.metadata),
+                pageCount: extracted.pageCount,
+              },
+            });
+
+            return { saved: Boolean(updated), length: extracted.text.length };
+          } catch (error) {
+            if (isNonRetriablePdfError(error)) {
+              throw new NonRetriableError(
+                `PDF source ${sourceId} is unreadable, scanned, or encrypted.`,
+                { cause: error }
+              );
+            }
+            throw error;
+          }
+        });
+        if (!result.saved) {
           return { sourceId, status: "skipped" };
         }
       } else {
-        throw new Error(
+        throw new NonRetriableError(
           `Source type ${source.sourceType} does not need background preparation.`
         );
       }

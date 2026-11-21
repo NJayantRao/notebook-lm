@@ -47,7 +47,7 @@ export type Source = {
 
 export type SourceListItem = Pick<
   Source,
-  "id" | "sourceType" | "title" | "status" | "createdAt"
+  "id" | "workspaceId" | "sourceType" | "title" | "status" | "createdAt"
 > & {
   processingError: string | null;
 };
@@ -74,6 +74,8 @@ type WorkspaceCitation = {
   chunkIndex: number;
   excerpt: string;
   score?: number;
+  page?: number;
+  startSeconds?: number;
 };
 
 type WebCitation = {
@@ -96,6 +98,8 @@ export type StreamCitation = {
   chunkIndex: number | null;
   excerpt: string;
   score?: number;
+  page?: number;
+  startSeconds?: number;
 };
 
 export type ConversationMessage = {

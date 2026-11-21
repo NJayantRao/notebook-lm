@@ -12,6 +12,10 @@ import { serve } from "inngest/express";
 import { indexSourceFunction } from "./functions/index-source.function.js";
 import { prepareSourceFunction } from "./functions/prepare-source.function.js";
 import { refreshUserMemoryFunction } from "./functions/refresh-user-memory.function.js";
+import {
+  cleanupSourceVectorsFunction,
+  cleanupWorkspaceNamespaceFunction,
+} from "./functions/cleanup.function.js";
 import memoryRoutes from "./routes/memories.route.js";
 import { checkDatabaseConnection } from "./config/db.js";
 import { NotFoundError } from "./utils/api-error.js";
@@ -34,6 +38,8 @@ app.use(
       indexSourceFunction,
       prepareSourceFunction,
       refreshUserMemoryFunction,
+      cleanupSourceVectorsFunction,
+      cleanupWorkspaceNamespaceFunction,
     ],
   })
 );

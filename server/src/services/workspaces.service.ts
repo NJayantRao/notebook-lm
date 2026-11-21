@@ -1,7 +1,7 @@
 import { NotFoundError } from "../utils/api-error.js";
 import repository from "../repository/workspaces.repository.js";
 import sourcesRepository from "../repository/sources.repository.js";
-import { cleanupWorkspaceResources } from "../lib/resource-cleanup.js";
+import { inngest } from "../lib/inngest.js";
 import type {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
@@ -52,7 +52,12 @@ const deleteWorkspace = async (userId: string, workspaceId: string) => {
     throw new NotFoundError("Workspace not found", WORKSPACE_NOT_FOUND);
   }
 
-  await cleanupWorkspaceResources(workspaceId, sources);
+  if (sources.length > 0) {
+    await inngest.send({
+      name: "workspace/namespace.cleanup",
+      data: { workspaceId, sources },
+    });
+  }
 
   return result;
 };

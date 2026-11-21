@@ -86,3 +86,23 @@ export async function importYouTubeSource(
   }
   return res.data.data;
 }
+
+export async function deleteSource(
+  workspaceId: string,
+  sourceId: string
+): Promise<void> {
+  await api.delete(`/api/workspace/${workspaceId}/${sourceId}`);
+}
+
+export async function reindexSource(
+  workspaceId: string,
+  sourceId: string
+): Promise<Source> {
+  const res = await api.post<ApiEnvelope<Source>>(
+    `/api/workspace/${workspaceId}/${sourceId}/reindex`
+  );
+  if (!res.data.data) {
+    throw new Error(res.data.message || "Failed to retry source");
+  }
+  return res.data.data;
+}

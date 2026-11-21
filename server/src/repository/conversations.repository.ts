@@ -20,6 +20,9 @@ export type RetrievedSourceChunk = {
   url: string | null;
   chunkIndex: number;
   content: string;
+  metadata: Record<string, unknown>;
+  page?: number;
+  startSeconds?: number;
 };
 
 export type ConversationRecord = typeof conversation.$inferSelect;
@@ -47,6 +50,16 @@ export type PersistedExchange = {
   userMessageCount: number;
 };
 
+const positiveInteger = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : undefined;
+
+const finiteNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+
 const findReadyChunksByIds = async (
   workspaceId: string,
   chunkIds: string[]
@@ -55,7 +68,7 @@ const findReadyChunksByIds = async (
     return [];
   }
 
-  return db
+  const rows = await db
     .select({
       id: chunk.id,
       sourceId: source.id,
@@ -64,6 +77,7 @@ const findReadyChunksByIds = async (
       url: source.url,
       chunkIndex: chunk.index,
       content: chunk.content,
+      metadata: chunk.metadata,
     })
     .from(chunk)
     .innerJoin(source, eq(chunk.sourceId, source.id))
@@ -74,6 +88,18 @@ const findReadyChunksByIds = async (
         eq(source.status, "ready")
       )
     );
+
+  return rows.map(({ metadata, ...row }) => {
+    const page = positiveInteger(metadata.page);
+    const startSeconds = finiteNumber(metadata.startSeconds);
+
+    return {
+      ...row,
+      metadata,
+      ...(page === undefined ? {} : { page }),
+      ...(startSeconds === undefined ? {} : { startSeconds }),
+    };
+  });
 };
 
 const findConversationsByWorkspaceId = async (

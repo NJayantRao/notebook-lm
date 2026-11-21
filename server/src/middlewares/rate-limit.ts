@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 
+import { ENV } from "../config/env.js";
 import { TooManyRequestsError } from "../utils/api-error.js";
 
 type RateBucket = {
@@ -73,6 +74,7 @@ export const createRateLimiter = ({
 
 const TEN_MINUTES = 10 * 60 * 1000;
 const ONE_HOUR = 60 * 60 * 1000;
+const ONE_DAY = 24 * ONE_HOUR;
 
 export const chatRateLimit = createRateLimiter({
   name: "chat",
@@ -80,6 +82,14 @@ export const chatRateLimit = createRateLimiter({
   limit: 30,
   message: "Too many chat requests. Please wait a few minutes and try again.",
   code: "CHAT_RATE_LIMIT_EXCEEDED",
+});
+
+export const dailyMessageRateLimit = createRateLimiter({
+  name: "daily-messages",
+  windowMs: ONE_DAY,
+  limit: ENV.DAILY_MESSAGE_LIMIT,
+  message: "You have reached your daily message limit. Please try again tomorrow.",
+  code: "DAILY_MESSAGE_LIMIT_EXCEEDED",
 });
 
 export const sourceRateLimit = createRateLimiter({

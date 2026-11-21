@@ -8,16 +8,11 @@ export type SourceCleanupData = {
   metadata: SourceMetadata;
 };
 
-const tryCleanup = async (
-  label: string,
-  task: () => Promise<void>
-): Promise<void> => {
-  try {
-    await task();
-  } catch (error) {
-    console.error(`Failed to clean up ${label}:`, error);
-  }
-};
+const isMissingFile = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  error.code === "ENOENT";
 
 const cleanupSourcePdf = async (source: SourceCleanupData): Promise<void> => {
   const storedFileName = source.metadata.storedFileName;
@@ -25,31 +20,31 @@ const cleanupSourcePdf = async (source: SourceCleanupData): Promise<void> => {
     return;
   }
 
-  await removeUploadedPdfByName(storedFileName);
+  try {
+    await removeUploadedPdfByName(storedFileName);
+  } catch (error) {
+    if (!isMissingFile(error)) {
+      throw error;
+    }
+  }
 };
 
+// These helpers are only called from Inngest cleanup functions. Errors are
+// intentionally propagated so Inngest can retry the cleanup.
 export const cleanupSourceResources = async (
   source: SourceCleanupData
 ): Promise<void> => {
-  await tryCleanup(`vectors for source ${source.id}`, () =>
-    deleteSourceVectors(source.workspaceId, source.id)
-  );
-  await tryCleanup(`PDF file for source ${source.id}`, () =>
-    cleanupSourcePdf(source)
-  );
+  await deleteSourceVectors(source.workspaceId, source.id);
+  await cleanupSourcePdf(source);
 };
 
 export const cleanupWorkspaceResources = async (
   workspaceId: string,
   sources: Array<Pick<SourceCleanupData, "id" | "metadata">>
 ): Promise<void> => {
-  await tryCleanup(`vectors for workspace ${workspaceId}`, () =>
-    deleteWorkspaceVectors(workspaceId)
-  );
+  await deleteWorkspaceVectors(workspaceId);
 
   for (const source of sources) {
-    await tryCleanup(`PDF file for source ${source.id}`, () =>
-      cleanupSourcePdf({ ...source, workspaceId })
-    );
+    await cleanupSourcePdf({ ...source, workspaceId });
   }
 };

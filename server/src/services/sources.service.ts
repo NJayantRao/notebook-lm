@@ -1,7 +1,9 @@
 import type { Express } from "express";
 import { basename, extname } from "node:path";
+import { ENV } from "../config/env.js";
 import {
   BadRequestError,
+  ConflictError,
   NotFoundError,
   ServiceUnavailableError,
 } from "../utils/api-error.js";
@@ -13,7 +15,6 @@ import workspaceRepository from "../repository/workspaces.repository.js";
 import { getYouTubeVideoId } from "../lib/youtube.js";
 import { inngest } from "../lib/inngest.js";
 import { removeUploadedPdf } from "../lib/multer.js";
-import { cleanupSourceResources } from "../lib/resource-cleanup.js";
 import type {
   CreateSourceInput,
   ImportWebsiteSourceInput,
@@ -34,6 +35,19 @@ const requireOwnedWorkspace = async (userId: string, workspaceId: string) => {
   }
 
   return workspace;
+};
+
+const assertSourceCapacity = async (workspaceId: string): Promise<void> => {
+  const { total } = await repository.countSourcesByWorkspaceId(workspaceId, {
+    page: 1,
+    limit: 1,
+  });
+  if (total >= ENV.MAX_SOURCES_PER_WORKSPACE) {
+    throw new ConflictError(
+      `This workspace can contain at most ${ENV.MAX_SOURCES_PER_WORKSPACE} sources.`,
+      "MAX_SOURCES_REACHED"
+    );
+  }
 };
 
 const listAllSources = async (
@@ -124,6 +138,8 @@ const saveWebsiteImport = async (
   workspaceId: string,
   input: ImportWebsiteSourceInput
 ) => {
+  await assertSourceCapacity(workspaceId);
+
   const source = await repository.createWebsiteSource(workspaceId, {
     title: input.title ?? new URL(input.url).hostname,
     content: null,
@@ -150,6 +166,8 @@ const saveYouTubeImport = async (
     );
   }
 
+  await assertSourceCapacity(workspaceId);
+
   const source = await repository.createYouTubeSource(workspaceId, {
     title: input.title ?? `YouTube video ${videoId}`,
     content: null,
@@ -175,6 +193,8 @@ const createSources = async (
   if (input.sourceType === "yt_url") {
     return saveYouTubeImport(workspaceId, input);
   }
+
+  await assertSourceCapacity(workspaceId);
 
   const source = await repository.createSource(workspaceId, input);
   return enqueueSourceIndexing(source);
@@ -210,6 +230,8 @@ const uploadPdfSource = async (
 
     const originalName = basename(file.originalname);
     const title = basename(originalName, extname(originalName)).trim();
+
+    await assertSourceCapacity(workspaceId);
 
     const source = await repository.createSource(workspaceId, {
       sourceType: "pdf",
@@ -250,8 +272,18 @@ const bulkDeleteSources = async (userId: string, workspaceId: string) => {
 
   const deletedSources =
     await repository.deleteAllSourcesByWorkspaceId(workspaceId);
-  for (const deletedSource of deletedSources) {
-    await cleanupSourceResources(deletedSource);
+  if (deletedSources.length > 0) {
+    await inngest.send({
+      name: "source/vectors.cleanup",
+      data: {
+        workspaceId,
+        sources: deletedSources.map((item) => ({
+          id: item.id,
+          workspaceId: item.workspaceId,
+          metadata: item.metadata,
+        })),
+      },
+    });
   }
 
   return deletedSources.length;
@@ -273,9 +305,62 @@ const deleteSource = async (
     throw new NotFoundError("Source not found", SOURCE_NOT_FOUND);
   }
 
-  await cleanupSourceResources(result);
+  await inngest.send({
+    name: "source/vectors.cleanup",
+    data: {
+      workspaceId,
+      sources: [
+        {
+          id: result.id,
+          workspaceId: result.workspaceId,
+          metadata: result.metadata,
+        },
+      ],
+    },
+  });
 
   return result;
+};
+
+const reindexSource = async (
+  userId: string,
+  workspaceId: string,
+  sourceId: string
+) => {
+  await requireOwnedWorkspace(userId, workspaceId);
+
+  const source = await repository.findSourceByWorkspaceIdAndId(
+    workspaceId,
+    sourceId
+  );
+  if (!source) {
+    throw new NotFoundError("Source not found", SOURCE_NOT_FOUND);
+  }
+
+  const needsPreparation =
+    source.sourceType === "website" ||
+    source.sourceType === "yt_url" ||
+    source.sourceType === "pdf";
+  const { processingError: _processingError, ...metadata } = source.metadata;
+  const updatedSource: SourceRecord = {
+    ...source,
+    status: "pending",
+    content: needsPreparation ? null : source.content,
+    metadata,
+  };
+
+  const saved = await repository.updateSourceRecord(sourceId, {
+    status: "pending",
+    content: updatedSource.content,
+    metadata,
+  });
+  if (!saved) {
+    throw new NotFoundError("Source not found", SOURCE_NOT_FOUND);
+  }
+
+  return needsPreparation
+    ? enqueueSourcePreparation(updatedSource)
+    : enqueueSourceIndexing(updatedSource);
 };
 
 export default {
@@ -286,4 +371,5 @@ export default {
   uploadPdfSource,
   bulkDeleteSources,
   deleteSource,
+  reindexSource,
 };

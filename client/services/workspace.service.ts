@@ -35,6 +35,27 @@ export async function getWorkspaceById(
   return res.data.data;
 }
 
+export type UpdateWorkspaceInput = {
+  title?: string;
+  description?: string | null;
+  icon?: string | null;
+  model?: string;
+};
+
+export async function updateWorkspace(
+  workspaceId: string,
+  input: UpdateWorkspaceInput
+): Promise<Workspace> {
+  const res = await api.patch<ApiEnvelope<Workspace>>(
+    `/api/workspaces/${workspaceId}`,
+    input
+  );
+  if (!res.data.data) {
+    throw new Error(res.data.message || "Failed to update workspace");
+  }
+  return res.data.data;
+}
+
 export async function deleteWorkspace(workspaceId: string): Promise<Workspace> {
   const res = await api.delete<ApiEnvelope<Workspace>>(
     `/api/workspaces/${workspaceId}`

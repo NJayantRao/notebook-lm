@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, or, sql, type SQL } from "drizzle-orm";
 
 import db from "../db/index.js";
 import { source } from "../db/schema.js";
@@ -9,7 +9,7 @@ type Source = typeof source.$inferSelect;
 export type SourceRecord = Source;
 export type SourceListItem = Pick<
   Source,
-  "id" | "sourceType" | "title" | "status" | "createdAt"
+  "id" | "workspaceId" | "sourceType" | "title" | "status" | "createdAt"
 > & {
   processingError: string | null;
 };
@@ -32,6 +32,11 @@ export type SourceFilters = {
   limit: number;
 };
 
+// LIKE treats `%`, `_` and the backslash itself as special characters. Escape
+// them so a user's search text is matched literally.
+const escapeLikePattern = (value: string): string =>
+  value.replace(/[\\%_]/g, (char) => `\\${char}`);
+
 const buildSourceConditions = (
   workspaceId: string,
   filters: SourceFilters
@@ -39,11 +44,11 @@ const buildSourceConditions = (
   const conditions: SQL[] = [eq(source.workspaceId, workspaceId)];
 
   if (filters.search) {
-    const pattern = `%${filters.search}%`;
+    const pattern = `%${escapeLikePattern(filters.search)}%`;
     const searchCondition = or(
-      ilike(source.title, pattern),
-      ilike(source.content, pattern),
-      ilike(source.url, pattern)
+      sql`${source.title} ilike ${pattern} escape '\\'`,
+      sql`${source.content} ilike ${pattern} escape '\\'`,
+      sql`${source.url} ilike ${pattern} escape '\\'`
     );
 
     if (searchCondition) {
@@ -69,6 +74,7 @@ const findSourcesByWorkspaceId = async (
   db
     .select({
       id: source.id,
+      workspaceId: source.workspaceId,
       sourceType: source.sourceType,
       title: source.title,
       status: source.status,
@@ -106,6 +112,19 @@ const findSourceById = async (
     .select()
     .from(source)
     .where(eq(source.id, sourceId))
+    .limit(1);
+
+  return result;
+};
+
+const findSourceByWorkspaceIdAndId = async (
+  workspaceId: string,
+  sourceId: string
+): Promise<Source | undefined> => {
+  const [result] = await db
+    .select()
+    .from(source)
+    .where(and(eq(source.workspaceId, workspaceId), eq(source.id, sourceId)))
     .limit(1);
 
   return result;
@@ -206,6 +225,7 @@ export default {
   findSourcesByWorkspaceId,
   countSourcesByWorkspaceId,
   findSourceById,
+  findSourceByWorkspaceIdAndId,
   findSourceCleanupDataByWorkspaceId,
   updateSourceRecord,
   updateSourceStatus,

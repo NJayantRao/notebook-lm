@@ -29,6 +29,11 @@ router.post(
   AsyncHandler(controller.uploadPdf)
 );
 router.delete("/bulk-delete", AsyncHandler(controller.bulkDeleteSources));
+router.post(
+  "/:sourceId/reindex",
+  sourceRateLimit,
+  AsyncHandler(controller.reindexSource)
+);
 router.delete("/:sourceId", AsyncHandler(controller.deleteSource));
 
 export default router;

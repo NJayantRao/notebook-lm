@@ -10,5 +10,6 @@ export type SourceMetadata = Record<string, unknown> & {
   processingError?: string;
   chunkCount?: number;
   pageCount?: number;
+  transcriptStarts?: number[];
   indexedAt?: string;
 };

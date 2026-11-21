@@ -1,5 +1,7 @@
 import sourceChunksService from "../services/source-chunks.service.js";
-import sourcesRepository from "../repository/sources.repository.js";
+import sourcesRepository, {
+  type SourceRecord,
+} from "../repository/sources.repository.js";
 import { inngest } from "../lib/inngest.js";
 
 const CHUNKS_PER_BATCH = 50;
@@ -77,7 +79,18 @@ export const indexSourceFunction = inngest.createFunction(
   },
   async ({ event, step }) => {
     const sourceId = requireSourceId(event.data);
-    const source = await sourcesRepository.findSourceById(sourceId);
+    const loadedSource = await step.run("load-source", () =>
+      sourcesRepository.findSourceById(sourceId)
+    );
+    // Inngest serializes step output as JSON, so restore Date fields before
+    // handing the record to the indexing service.
+    const source: SourceRecord | undefined = loadedSource
+      ? {
+          ...loadedSource,
+          createdAt: new Date(loadedSource.createdAt),
+          updatedAt: new Date(loadedSource.updatedAt),
+        }
+      : undefined;
     if (!source || source.status === "ready") {
       return { sourceId, status: "skipped" };
     }
@@ -107,12 +120,30 @@ export const indexSourceFunction = inngest.createFunction(
       return { sourceId, status: "skipped" };
     }
 
-    await step.run("delete-previous-vectors", () =>
-      sourceChunksService.deleteSourceVectorsForWorkspace(
-        source.workspaceId,
-        sourceId
-      )
-    );
+    await step.run("delete-previous-vectors", async () => {
+      try {
+        await sourceChunksService.deleteSourceVectorsForWorkspace(
+          source.workspaceId,
+          sourceId
+        );
+      } catch (error) {
+        // A missing namespace is expected for first-time indexing and retries.
+        const message =
+          error instanceof Error ? error.message.toLowerCase() : "";
+        const status =
+          typeof error === "object" && error !== null && "status" in error
+            ? error.status
+            : undefined;
+        const namespaceMissing =
+          status === 404 ||
+          message.includes("404") ||
+          message.includes("namespace not found") ||
+          message.includes("not found");
+        if (!namespaceMissing) {
+          throw error;
+        }
+      }
+    });
 
     const chunkCount = await step.run("create-source-chunks", () =>
       sourceChunksService.createSourceChunks(source)

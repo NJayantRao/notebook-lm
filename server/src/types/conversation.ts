@@ -7,6 +7,8 @@ type WorkspaceCitation = {
   chunkIndex: number;
   excerpt: string;
   score?: number;
+  page?: number;
+  startSeconds?: number;
 };
 
 type WebCitation = {

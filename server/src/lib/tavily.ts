@@ -5,6 +5,7 @@ import {
   BadGatewayError,
   ServiceUnavailableError,
 } from "../utils/api-error.js";
+import { withTimeout } from "./timeout.js";
 
 export const searchWeb = async (query: string) => {
   const apiKey = ENV.TAVILY_API_KEY?.trim();
@@ -16,10 +17,14 @@ export const searchWeb = async (query: string) => {
   }
 
   try {
-    return await tavily({ apiKey }).search(query, {
-      searchDepth: "basic",
-      maxResults: 5,
-    });
+    return await withTimeout(
+      tavily({ apiKey }).search(query, {
+        searchDepth: "basic",
+        maxResults: 5,
+      }),
+      30_000,
+      "Tavily web search"
+    );
   } catch (error) {
     console.error("Tavily web search failed:", error);
     throw new BadGatewayError(
