@@ -5,7 +5,7 @@ import {
 } from "../utils/api-error.js";
 import conversationsRepository, {
   type ConversationDetail,
-  type ConversationRecord,
+  type ConversationListItem,
 } from "../repository/conversations.repository.js";
 import workspaceRepository from "../repository/workspaces.repository.js";
 import {
@@ -213,7 +213,7 @@ const enqueueMemoryRefresh = async (
 const listConversations = async (
   userId: string,
   workspaceId: string
-): Promise<ConversationRecord[]> => {
+): Promise<ConversationListItem[]> => {
   await ensureWorkspaceAccess(userId, workspaceId);
   return conversationsRepository.findConversationsByWorkspaceId(workspaceId);
 };

@@ -50,6 +50,7 @@ export async function listSources(
       sources: [],
       pagination: {
         total: 0,
+        readyCount: 0,
         page: 1,
         limit: params.limit ?? 20,
         totalPages: 0,

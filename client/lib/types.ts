@@ -9,6 +9,11 @@ export type Workspace = {
   updatedAt: string;
 };
 
+export type WorkspaceListItem = Pick<
+  Workspace,
+  "id" | "title" | "description" | "icon" | "createdAt"
+>;
+
 export type SourceType = "text" | "markdown" | "pdf" | "website" | "yt_url";
 export type SourceStatus = "pending" | "processing" | "failed" | "ready";
 
@@ -40,15 +45,23 @@ export type Source = {
   updatedAt: string;
 };
 
+export type SourceListItem = Pick<
+  Source,
+  "id" | "sourceType" | "title" | "status" | "createdAt"
+> & {
+  processingError: string | null;
+};
+
 export type SourcesPagination = {
   total: number;
+  readyCount: number;
   page: number;
   limit: number;
   totalPages: number;
 };
 
 export type SourcesPage = {
-  sources: Source[];
+  sources: SourceListItem[];
   pagination: SourcesPagination;
 };
 
@@ -95,3 +108,8 @@ export type Conversation = {
   updatedAt: string;
   messages?: ConversationMessage[];
 };
+
+export type ConversationListItem = Pick<
+  Conversation,
+  "id" | "title" | "updatedAt"
+>;

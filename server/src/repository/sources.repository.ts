@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
 import db from "../db/index.js";
 import { source } from "../db/schema.js";
@@ -7,6 +7,12 @@ import { InternalServerError } from "../utils/api-error.js";
 
 type Source = typeof source.$inferSelect;
 export type SourceRecord = Source;
+export type SourceListItem = Pick<
+  Source,
+  "id" | "sourceType" | "title" | "status" | "createdAt"
+> & {
+  processingError: string | null;
+};
 
 type CreateSourceData = {
   sourceType: Source["sourceType"];
@@ -58,9 +64,16 @@ const buildSourceConditions = (
 const findSourcesByWorkspaceId = async (
   workspaceId: string,
   filters: SourceFilters
-): Promise<Source[]> =>
+): Promise<SourceListItem[]> =>
   db
-    .select()
+    .select({
+      id: source.id,
+      sourceType: source.sourceType,
+      title: source.title,
+      status: source.status,
+      createdAt: source.createdAt,
+      processingError: sql<string | null>`${source.metadata}->>'processingError'`,
+    })
     .from(source)
     .where(buildSourceConditions(workspaceId, filters))
     .orderBy(desc(source.createdAt))
@@ -70,13 +83,19 @@ const findSourcesByWorkspaceId = async (
 const countSourcesByWorkspaceId = async (
   workspaceId: string,
   filters: SourceFilters
-): Promise<number> => {
+): Promise<{ total: number; ready: number }> => {
   const [result] = await db
-    .select({ value: count() })
+    .select({
+      total: count(),
+      ready: sql<number>`count(*) filter (where ${source.status} = 'ready')`,
+    })
     .from(source)
     .where(buildSourceConditions(workspaceId, filters));
 
-  return result?.value ?? 0;
+  return {
+    total: result?.total ?? 0,
+    ready: Number(result?.ready ?? 0),
+  };
 };
 
 const findSourceById = async (

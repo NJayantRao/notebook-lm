@@ -23,6 +23,10 @@ export type RetrievedSourceChunk = {
 };
 
 export type ConversationRecord = typeof conversation.$inferSelect;
+export type ConversationListItem = Pick<
+  ConversationRecord,
+  "id" | "title" | "updatedAt"
+>;
 export type MessageRecord = typeof message.$inferSelect;
 export type ConversationDetail = ConversationRecord & {
   messages: MessageRecord[];
@@ -73,9 +77,13 @@ const findReadyChunksByIds = async (
 
 const findConversationsByWorkspaceId = async (
   workspaceId: string
-): Promise<ConversationRecord[]> =>
+): Promise<ConversationListItem[]> =>
   db
-    .select()
+    .select({
+      id: conversation.id,
+      title: conversation.title,
+      updatedAt: conversation.updatedAt,
+    })
     .from(conversation)
     .where(eq(conversation.workspaceId, workspaceId))
     .orderBy(desc(conversation.updatedAt));

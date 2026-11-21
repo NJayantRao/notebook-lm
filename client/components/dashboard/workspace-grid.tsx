@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Workspace } from "@/lib/types";
+import type { WorkspaceListItem } from "@/lib/types";
 import { getErrorMessage } from "@/lib/api";
 
 function formatDate(value: string) {
@@ -29,7 +29,7 @@ function formatDate(value: string) {
   }
 }
 
-function WorkspaceCardItem({ workspace }: { workspace: Workspace }) {
+function WorkspaceCardItem({ workspace }: { workspace: WorkspaceListItem }) {
   return (
     <Card className="group relative flex h-full flex-col border-white/10 bg-white/[0.02] p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.04]">
       <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(71,123,255,0.14),transparent_60%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -76,7 +76,7 @@ export function WorkspaceGrid({
   error,
   onCreate,
 }: {
-  workspaces: Workspace[];
+  workspaces: WorkspaceListItem[];
   loading: boolean;
   error: unknown;
   onCreate: () => void;

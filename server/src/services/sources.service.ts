@@ -44,7 +44,7 @@ const listAllSources = async (
 ) => {
   await requireOwnedWorkspace(userId, workspaceId);
 
-  const [sources, total] = await Promise.all([
+  const [sources, counts] = await Promise.all([
     repository.findSourcesByWorkspaceId(workspaceId, filters),
     repository.countSourcesByWorkspaceId(workspaceId, filters),
   ]);
@@ -52,10 +52,11 @@ const listAllSources = async (
   return {
     sources,
     pagination: {
-      total,
+      total: counts.total,
+      readyCount: counts.ready,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(counts.total / filters.limit),
     },
   };
 };

@@ -1,13 +1,13 @@
 import { api, type ApiEnvelope } from "@/lib/api";
-import type { Conversation } from "@/lib/types";
+import type { Conversation, ConversationListItem } from "@/lib/types";
 
 const conversationsUrl = (workspaceId: string) =>
   `/api/workspace/${workspaceId}/conversations`;
 
 export async function listConversations(
   workspaceId: string
-): Promise<Conversation[]> {
-  const res = await api.get<ApiEnvelope<Conversation[]>>(
+): Promise<ConversationListItem[]> {
+  const res = await api.get<ApiEnvelope<ConversationListItem[]>>(
     conversationsUrl(workspaceId)
   );
   return res.data.data ?? [];

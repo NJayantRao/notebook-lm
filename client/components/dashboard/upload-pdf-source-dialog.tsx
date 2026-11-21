@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/lib/api";
-import type { Workspace } from "@/lib/types";
+import type { WorkspaceListItem } from "@/lib/types";
 import { uploadPdfSource } from "@/services/source.service";
 
 const MAX_PDF_SIZE_BYTES = 25 * 1024 * 1024;
@@ -27,7 +27,7 @@ export function UploadPdfSourceDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaces: Workspace[];
+  workspaces: WorkspaceListItem[];
 }) {
   const queryClient = useQueryClient();
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");

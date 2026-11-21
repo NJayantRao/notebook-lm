@@ -14,7 +14,7 @@ import { useAuthSession } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { listWorkspaces } from "@/services/workspace.service";
 import { listSources } from "@/services/source.service";
-import type { Source } from "@/lib/types";
+import type { SourceListItem } from "@/lib/types";
 
 export function DashboardShell() {
   const { data: session } = useAuthSession();
@@ -34,25 +34,40 @@ export function DashboardShell() {
   const sourcesQuery = useQuery({
     queryKey: ["recent-sources", workspaces.map((w) => w.id).join(",")],
     queryFn: async () => {
-      if (workspaces.length === 0) return [] as Source[];
-      const results = await Promise.allSettled(
+      if (workspaces.length === 0) {
+        return {
+          sources: [] as SourceListItem[],
+          totalSources: 0,
+          processedSources: 0,
+        };
+      }
+
+      const pages = await Promise.all(
         workspaces.map((w) => listSources(w.id, { limit: 5, page: 1 }))
       );
-      const all: Source[] = [];
-      for (const r of results) {
-        if (r.status === "fulfilled") {
-          all.push(...r.value.sources);
-        }
-      }
-      all.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      return all.slice(0, 8);
+      const sources = pages
+        .flatMap((page) => page.sources)
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+        .slice(0, 8);
+
+      return {
+        sources,
+        totalSources: pages.reduce(
+          (sum, page) => sum + page.pagination.total,
+          0
+        ),
+        processedSources: pages.reduce(
+          (sum, page) => sum + page.pagination.readyCount,
+          0
+        ),
+      };
     },
     enabled: !!session && workspacesQuery.isSuccess,
     refetchInterval: (query) =>
-      query.state.data?.some(
+      query.state.data?.sources.some(
         (source) =>
           source.status === "pending" || source.status === "processing"
       )
@@ -60,11 +75,9 @@ export function DashboardShell() {
         : false,
   });
 
-  const allSources = sourcesQuery.data ?? [];
-  const totalSources = allSources.length;
-  const processedSources = allSources.filter(
-    (s) => s.status === "ready"
-  ).length;
+  const allSources = sourcesQuery.data?.sources ?? [];
+  const totalSources = sourcesQuery.data?.totalSources ?? 0;
+  const processedSources = sourcesQuery.data?.processedSources ?? 0;
 
   return (
     <div className="min-h-screen bg-app-radial text-foreground">

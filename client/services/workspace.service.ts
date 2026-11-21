@@ -1,5 +1,5 @@
 import { api, type ApiEnvelope } from "@/lib/api";
-import type { Workspace } from "@/lib/types";
+import type { Workspace, WorkspaceListItem } from "@/lib/types";
 
 export type CreateWorkspaceInput = {
   title: string;
@@ -8,8 +8,8 @@ export type CreateWorkspaceInput = {
   model?: string;
 };
 
-export async function listWorkspaces(): Promise<Workspace[]> {
-  const res = await api.get<ApiEnvelope<Workspace[]>>("/api/workspaces");
+export async function listWorkspaces(): Promise<WorkspaceListItem[]> {
+  const res = await api.get<ApiEnvelope<WorkspaceListItem[]>>("/api/workspaces");
   return res.data.data ?? [];
 }
 

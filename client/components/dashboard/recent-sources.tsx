@@ -12,7 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import type { Source, SourceStatus, SourceType } from "@/lib/types";
+import type { SourceListItem, SourceStatus, SourceType } from "@/lib/types";
 
 function formatDate(value: string) {
   try {
@@ -93,7 +93,7 @@ export function RecentSources({
   loading,
   hasWorkspaces,
 }: {
-  sources: Source[];
+  sources: SourceListItem[];
   loading: boolean;
   hasWorkspaces: boolean;
 }) {
@@ -161,12 +161,12 @@ export function RecentSources({
                         <span>Added {formatDate(source.createdAt)}</span>
                       </div>
                       {source.status === "failed" &&
-                        source.metadata.processingError && (
+                        source.processingError && (
                           <p
                             className="mt-1 line-clamp-2 text-xs text-red-300"
-                            title={source.metadata.processingError}
+                            title={source.processingError}
                           >
-                            {source.metadata.processingError}
+                            {source.processingError}
                           </p>
                         )}
                     </div>

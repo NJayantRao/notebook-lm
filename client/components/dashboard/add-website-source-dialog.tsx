@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/lib/api";
-import type { Workspace } from "@/lib/types";
+import type { WorkspaceListItem } from "@/lib/types";
 import { importWebsiteSource } from "@/services/source.service";
 
 export function AddWebsiteSourceDialog({
@@ -25,7 +25,7 @@ export function AddWebsiteSourceDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaces: Workspace[];
+  workspaces: WorkspaceListItem[];
 }) {
   const queryClient = useQueryClient();
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");

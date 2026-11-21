@@ -9,10 +9,22 @@ import type {
 } from "../validators/workspaces.validator.js";
 
 type Workspace = typeof workspace.$inferSelect;
+export type WorkspaceListItem = Pick<
+  Workspace,
+  "id" | "title" | "description" | "icon" | "createdAt"
+>;
 
-const findWorkspacesByUserId = async (userId: string): Promise<Workspace[]> =>
+const findWorkspacesByUserId = async (
+  userId: string
+): Promise<WorkspaceListItem[]> =>
   db
-    .select()
+    .select({
+      id: workspace.id,
+      title: workspace.title,
+      description: workspace.description,
+      icon: workspace.icon,
+      createdAt: workspace.createdAt,
+    })
     .from(workspace)
     .where(eq(workspace.userId, userId))
     .orderBy(desc(workspace.createdAt));
