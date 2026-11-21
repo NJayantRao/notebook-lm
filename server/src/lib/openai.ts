@@ -43,18 +43,23 @@ export const createEmbeddings = async (
     input: texts,
   });
 
-  const embeddings = response.data
-    .sort((left, right) => left.index - right.index)
-    .map(({ embedding }) => embedding);
+  const orderedEmbeddings = [...response.data].sort(
+    (left, right) => left.index - right.index
+  );
 
   if (
-    embeddings.length !== texts.length ||
-    embeddings.some((embedding) => embedding.length !== EMBEDDING_DIMENSIONS)
+    orderedEmbeddings.length !== texts.length ||
+    orderedEmbeddings.some(
+      (item, index) => item.index !== index
+    ) ||
+    orderedEmbeddings.some(
+      (item) => item.embedding.length !== EMBEDDING_DIMENSIONS
+    )
   ) {
     throw new Error("OpenAI returned embeddings with an unexpected shape.");
   }
 
-  return embeddings;
+  return orderedEmbeddings.map(({ embedding }) => embedding);
 };
 
 export const generateChatAnswer = async (

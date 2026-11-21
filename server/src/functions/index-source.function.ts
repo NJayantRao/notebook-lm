@@ -4,17 +4,34 @@ import { inngest } from "../lib/inngest.js";
 
 const CHUNKS_PER_BATCH = 50;
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error && error.message.trim()
+    ? error.message
+    : "Source indexing failed.";
+
+const withoutIndexingMetadata = (metadata: Record<string, unknown>) => {
+  const {
+    processingError: _processingError,
+    chunkCount: _chunkCount,
+    indexedAt: _indexedAt,
+    ...rest
+  } = metadata;
+
+  return rest;
+};
+
 const requireSourceId = (data: unknown): string => {
   if (
     typeof data !== "object" ||
     data === null ||
     !("sourceId" in data) ||
-    typeof data.sourceId !== "string"
+    typeof data.sourceId !== "string" ||
+    !data.sourceId.trim()
   ) {
     throw new Error("The source indexing event is missing its source ID.");
   }
 
-  return data.sourceId;
+  return data.sourceId.trim();
 };
 
 export const indexSourceFunction = inngest.createFunction(
@@ -27,20 +44,35 @@ export const indexSourceFunction = inngest.createFunction(
     },
     triggers: [{ event: "source/index.requested" }],
     onFailure: async ({ event, error }) => {
-      const sourceId = requireSourceId(event.data.event.data);
-      console.error(`Indexing source ${sourceId} failed after retries:`, error);
-      const source = await sourcesRepository.findSourceById(sourceId);
-      if (!source) {
-        return;
-      }
+      let sourceId = "unknown";
 
-      await sourcesRepository.updateSourceRecord(sourceId, {
-        status: "failed",
-        metadata: {
-          ...source.metadata,
-          processingError: error.message,
-        },
-      });
+      try {
+        sourceId = requireSourceId(event.data.event.data);
+        console.error(`Indexing source ${sourceId} failed after retries:`, error);
+
+        const source = await sourcesRepository.findSourceById(sourceId);
+        if (!source) {
+          return;
+        }
+
+        const updated = await sourcesRepository.updateSourceRecord(sourceId, {
+          status: "failed",
+          metadata: {
+            ...withoutIndexingMetadata(source.metadata),
+            processingError: getErrorMessage(error),
+          },
+        });
+        if (!updated) {
+          console.warn(
+            `Source ${sourceId} was removed before its indexing failure could be recorded.`
+          );
+        }
+      } catch (persistError) {
+        console.error(
+          `Failed to record indexing failure for source ${sourceId}:`,
+          persistError
+        );
+      }
     },
   },
   async ({ event, step }) => {
@@ -60,12 +92,11 @@ export const indexSourceFunction = inngest.createFunction(
       throw new Error(`Source type ${source.sourceType} cannot be indexed.`);
     }
 
-    const {
-      processingError: _processingError,
-      chunkCount: _chunkCount,
-      indexedAt: _indexedAt,
-      ...sourceMetadata
-    } = source.metadata;
+    if (!source.content?.trim()) {
+      throw new Error(`Source ${sourceId} does not contain indexable text.`);
+    }
+
+    const sourceMetadata = withoutIndexingMetadata(source.metadata);
     const markedProcessing = await step.run("mark-source-processing", () =>
       sourcesRepository.updateSourceRecord(sourceId, {
         status: "processing",
@@ -104,6 +135,13 @@ export const indexSourceFunction = inngest.createFunction(
       const chunks = await step.run(`load-source-chunks-${batchNumber}`, () =>
         sourceChunksService.findSourceChunks(sourceId, offset, CHUNKS_PER_BATCH)
       );
+      const expectedCount = Math.min(CHUNKS_PER_BATCH, chunkCount - offset);
+      if (chunks.length !== expectedCount) {
+        throw new Error(
+          `Source ${sourceId} returned ${chunks.length} chunks in batch ${batchNumber}; expected ${expectedCount}.`
+        );
+      }
+
       await step.run(`upsert-source-chunks-${batchNumber}`, () =>
         sourceChunksService.indexSourceChunkBatch(source, chunks)
       );
