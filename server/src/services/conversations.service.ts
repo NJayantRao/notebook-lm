@@ -1,3 +1,11 @@
+import type { Response } from "express";
+import {
+  createUIMessageStream,
+  pipeUIMessageStreamToResponse,
+  toUIMessageStream,
+  type UIMessage,
+} from "ai";
+
 import {
   BadGatewayError,
   NotFoundError,
@@ -9,9 +17,11 @@ import conversationsRepository, {
 } from "../repository/conversations.repository.js";
 import workspaceRepository from "../repository/workspaces.repository.js";
 import {
+  buildChatPrompt,
   CHAT_MODEL,
   createEmbeddings,
-  generateChatAnswer,
+  generateChatAnswerFromPrompt,
+  streamChatAnswer,
 } from "../lib/openai.js";
 import { querySourceChunkVectors } from "../lib/pinecone.js";
 import { searchWeb } from "../lib/tavily.js";
@@ -24,6 +34,25 @@ const WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND";
 const CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND";
 const TOP_K = 6;
 const MEMORY_REFRESH_INTERVAL = 16;
+const NO_SOURCES_MESSAGE =
+  "I couldn't find any indexed source excerpts in this workspace that can answer your question. Add sources and wait for indexing to finish, then try again.";
+const NO_WEB_RESULTS_MESSAGE =
+  "Web search did not return any results for this question.";
+
+export type StreamCitation = {
+  number: number;
+  sourceId: string | null;
+  title: string;
+  sourceType: string;
+  url: string | null;
+  chunkIndex: number | null;
+  excerpt: string;
+  score?: number;
+};
+
+type StreamMetadata = {
+  citations: StreamCitation[];
+};
 
 // Only these workspace model values may reach the chat API. The legacy value is
 // kept so existing workspaces keep working without a database migration.
@@ -58,13 +87,22 @@ const ensureWorkspaceAccess = async (
   }
 };
 
-const createAnswer = async (
+type AnswerContext = {
+  sources: ConversationCitation[];
+  chatModel: string;
+  prompt?: ReturnType<typeof buildChatPrompt>;
+  fixedAnswer?: string;
+};
+
+// All retrieval (question embedding, Pinecone search, and Postgres hydration)
+// happens here before either chat path starts generating tokens.
+const prepareAnswer = async (
   userId: string,
   workspaceId: string,
   question: string,
   history: { role: "user" | "assistant"; content: string }[],
   webSearch: boolean
-): Promise<{ answer: string; sources: ConversationCitation[] }> => {
+): Promise<AnswerContext> => {
   const workspace = await workspaceRepository.findWorkspaceByIdAndUserId(
     workspaceId,
     userId
@@ -88,10 +126,7 @@ const createAnswer = async (
     );
 
     if (sources.length === 0) {
-      return {
-        answer: "Web search did not return any results for this question.",
-        sources: [],
-      };
+      return { sources, chatModel, fixedAnswer: NO_WEB_RESULTS_MESSAGE };
     }
 
     const sourceContext = sources
@@ -100,16 +135,18 @@ const createAnswer = async (
           `[${source.number}] ${source.title}\nURL: ${source.url}\nExcerpt:\n${source.excerpt}`
       )
       .join("\n\n");
-    const answer = await generateChatAnswer(
-      question,
-      history.slice(-10),
-      sourceContext,
-      "web",
-      userMemories,
-      chatModel
-    );
 
-    return { answer, sources };
+    return {
+      sources,
+      chatModel,
+      prompt: buildChatPrompt(
+        question,
+        history.slice(-10),
+        sourceContext,
+        "web",
+        userMemories
+      ),
+    };
   }
 
   let queryVector: number[] | undefined;
@@ -161,23 +198,43 @@ const createAnswer = async (
     }));
 
   if (sources.length === 0) {
-    return {
-      answer:
-        "I couldn't find any indexed source excerpts in this workspace that can answer your question. Add sources and wait for indexing to finish, then try again.",
-      sources: [],
-    };
+    return { sources, chatModel, fixedAnswer: NO_SOURCES_MESSAGE };
   }
 
-  const answer = await generateChatAnswer(
+  return {
+    sources,
+    chatModel,
+    prompt: buildChatPrompt(
+      question,
+      history.slice(-10),
+      formatSourceContext(sources),
+      "workspace",
+      await searchUserMemories(userId, question)
+    ),
+  };
+};
+
+const createAnswer = async (
+  userId: string,
+  workspaceId: string,
+  question: string,
+  history: { role: "user" | "assistant"; content: string }[],
+  webSearch: boolean
+): Promise<{ answer: string; sources: ConversationCitation[] }> => {
+  const prepared = await prepareAnswer(
+    userId,
+    workspaceId,
     question,
-    history.slice(-10),
-    formatSourceContext(sources),
-    "workspace",
-    await searchUserMemories(userId, question),
-    chatModel
+    history,
+    webSearch
   );
 
-  return { answer, sources };
+  return {
+    answer: prepared.prompt
+      ? await generateChatAnswerFromPrompt(prepared.prompt, prepared.chatModel)
+      : (prepared.fixedAnswer ?? NO_SOURCES_MESSAGE),
+    sources: prepared.sources,
+  };
 };
 
 const enqueueMemoryRefresh = async (
@@ -309,9 +366,158 @@ const sendConversationMessage = async (
   return persisted.conversation;
 };
 
+const toStreamCitations = (
+  sources: ConversationCitation[]
+): StreamCitation[] =>
+  sources.map((item) => ({
+    number: item.number,
+    sourceId: "sourceId" in item ? item.sourceId : null,
+    title: item.title,
+    sourceType: item.sourceType,
+    url: item.url ?? null,
+    chunkIndex: "chunkIndex" in item ? item.chunkIndex : null,
+    excerpt: item.excerpt,
+    ...(item.score === undefined ? {} : { score: item.score }),
+  }));
+
+const streamAnswer = async (
+  userId: string,
+  workspaceId: string,
+  conversationId: string | undefined,
+  input: CreateConversationInput,
+  res: Response
+): Promise<void> => {
+  const currentConversation = conversationId
+    ? await getConversation(userId, workspaceId, conversationId)
+    : undefined;
+  const history = (currentConversation?.messages ?? []).map((item) => ({
+    role: item.role,
+    content: item.content,
+  }));
+
+  const prepared = await prepareAnswer(
+    userId,
+    workspaceId,
+    input.message,
+    history,
+    input.webSearch
+  );
+
+  const activeConversationId = conversationId ?? crypto.randomUUID();
+  const citations = toStreamCitations(prepared.sources);
+  const title = conversationId
+    ? undefined
+    : getConversationTitle(input.message);
+
+  const stream = createUIMessageStream<UIMessage<StreamMetadata>>({
+    execute: ({ writer }) => {
+      writer.write({ type: "start" });
+      writer.write({
+        type: "message-metadata",
+        messageMetadata: { citations },
+      });
+      writer.write({
+        type: "data-conversation",
+        id: "conversation",
+        data: { conversationId: activeConversationId },
+      });
+
+      if (!prepared.prompt) {
+        const textId = "answer";
+        writer.write({ type: "text-start", id: textId });
+        writer.write({
+          type: "text-delta",
+          id: textId,
+          delta: prepared.fixedAnswer ?? NO_SOURCES_MESSAGE,
+        });
+        writer.write({ type: "text-end", id: textId });
+        writer.setOutcome({ status: "completed" });
+        return;
+      }
+
+      const result = streamChatAnswer(prepared.prompt, prepared.chatModel);
+      writer.merge(
+        toUIMessageStream({
+          stream: result.stream,
+          sendStart: false,
+          onEnd: ({ outcome }) => writer.setOutcome(outcome),
+        })
+      );
+    },
+    onEnd: async ({ outcome, isAborted, isCancelled, responseMessage }) => {
+      if (isAborted || isCancelled || outcome.status !== "completed") {
+        return;
+      }
+
+      const answer = responseMessage.parts
+        .filter(
+          (part): part is { type: "text"; text: string } => part.type === "text"
+        )
+        .map((part) => part.text)
+        .join("")
+        .trim();
+      if (!answer) {
+        return;
+      }
+
+      const persisted = await conversationsRepository.persistExchange({
+        workspaceId,
+        ...(conversationId
+          ? { conversationId }
+          : {
+              newConversationId: activeConversationId,
+              ...(title ? { title } : {}),
+            }),
+        userContent: input.message,
+        assistantContent: answer,
+        sources: prepared.sources,
+      });
+
+      try {
+        await enqueueMemoryRefresh(
+          userId,
+          persisted.conversation.id,
+          persisted.userMessageCount
+        );
+      } catch (error) {
+        console.error(
+          `Could not queue memory refresh after streaming for conversation ${persisted.conversation.id}:`,
+          error
+        );
+      }
+    },
+    onError: () =>
+      "The assistant could not generate a response. Please try again.",
+  });
+
+  await pipeUIMessageStreamToResponse({ response: res, stream });
+};
+
+const streamNewConversation = async (
+  userId: string,
+  workspaceId: string,
+  input: CreateConversationInput,
+  res: Response
+): Promise<void> => {
+  await ensureWorkspaceAccess(userId, workspaceId);
+  await streamAnswer(userId, workspaceId, undefined, input, res);
+};
+
+const streamConversationMessage = async (
+  userId: string,
+  workspaceId: string,
+  conversationId: string,
+  input: CreateConversationInput,
+  res: Response
+): Promise<void> => {
+  await streamAnswer(userId, workspaceId, conversationId, input, res);
+};
+
 export default {
   listConversations,
   getConversation,
   createConversation,
   sendConversationMessage,
+  streamNewConversation,
+  streamConversationMessage,
 };

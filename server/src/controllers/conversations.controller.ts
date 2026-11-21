@@ -65,9 +65,35 @@ const sendConversationMessage = async (req: Request, res: Response) => {
   res.status(200).json(new ApiResponse(200, "Message sent", result));
 };
 
+const createConversationStream = async (req: Request, res: Response) => {
+  const { workspaceId } = validate(
+    workspaceConversationsParamsSchema,
+    req.params
+  );
+  const input = validate(createConversationSchema, req.body);
+  await service.streamNewConversation(req.user.id, workspaceId, input, res);
+};
+
+const sendConversationMessageStream = async (req: Request, res: Response) => {
+  const { workspaceId, conversationId } = validate(
+    conversationParamsSchema,
+    req.params
+  );
+  const input = validate(sendConversationMessageSchema, req.body);
+  await service.streamConversationMessage(
+    req.user.id,
+    workspaceId,
+    conversationId,
+    input,
+    res
+  );
+};
+
 export default {
   listConversations,
   getConversation,
   createConversation,
   sendConversationMessage,
+  createConversationStream,
+  sendConversationMessageStream,
 };

@@ -35,6 +35,7 @@ export type ConversationDetail = ConversationRecord & {
 type PersistExchangeInput = {
   workspaceId: string;
   conversationId?: string;
+  newConversationId?: string;
   title?: string;
   userContent: string;
   assistantContent: string;
@@ -189,6 +190,9 @@ const persistExchange = async (
       const [created] = await tx
         .insert(conversation)
         .values({
+          ...(input.newConversationId
+            ? { id: input.newConversationId }
+            : {}),
           workspaceId: input.workspaceId,
           title: input.title ?? null,
         })

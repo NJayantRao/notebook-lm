@@ -87,6 +87,17 @@ type WebCitation = {
 
 export type ConversationCitation = WorkspaceCitation | WebCitation;
 
+export type StreamCitation = {
+  number: number;
+  sourceId: string | null;
+  title: string;
+  sourceType: SourceType | "web";
+  url: string | null;
+  chunkIndex: number | null;
+  excerpt: string;
+  score?: number;
+};
+
 export type ConversationMessage = {
   id: string;
   conversationId: string;

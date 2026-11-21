@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import Markdown, { type Components } from "react-markdown";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   ArrowLeft,
   ExternalLink,
@@ -11,8 +13,9 @@ import {
   MessageSquareText,
   Plus,
   Send,
+  Square,
 } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { AddMemoryDialog } from "@/components/workspace/add-memory-dialog";
 import { Button } from "@/components/ui/button";
@@ -20,13 +23,8 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthSession } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api";
-import type { Conversation, ConversationMessage } from "@/lib/types";
-import {
-  createConversation,
-  getConversation,
-  listConversations,
-  sendConversationMessage,
-} from "@/services/conversation.service";
+import type { ConversationMessage, StreamCitation } from "@/lib/types";
+import { getConversation, listConversations } from "@/services/conversation.service";
 import { getWorkspaceById } from "@/services/workspace.service";
 
 function formatConversationDate(value: string) {
@@ -36,29 +34,37 @@ function formatConversationDate(value: string) {
   }).format(new Date(value));
 }
 
-type ConversationCacheKey = readonly [string, string, string | null];
-
-type SendMutationContext = {
-  cacheKey: ConversationCacheKey;
-  previous: Conversation | undefined;
-  optimisticId: string;
-  previousSelectedId: string | null;
+type ChatMetadata = {
+  citations?: StreamCitation[];
 };
 
-const mergeMessages = (
-  current: ConversationMessage[] | undefined,
-  incoming: ConversationMessage[],
-  removedId?: string
-): ConversationMessage[] => {
-  const combined = [
-    ...(current ?? []).filter((message) => message.id !== removedId),
-    ...incoming,
-  ];
-  return combined.filter(
-    (message, index) =>
-      combined.findIndex((candidate) => candidate.id === message.id) === index
-  );
+type ChatDataParts = {
+  conversation: { conversationId: string };
 };
+
+type ChatUIMessage = UIMessage<ChatMetadata, ChatDataParts>;
+
+const toUIMessages = (messages: ConversationMessage[]): ChatUIMessage[] =>
+  messages.map((message) => ({
+    id: message.id,
+    role: message.role,
+    metadata: {
+      citations: (message.sources ?? []) as StreamCitation[],
+    },
+    createdAt: new Date(message.createdAt),
+    parts: [{ type: "text", text: message.content }],
+  }));
+
+const getText = (message: ChatUIMessage): string =>
+  message.parts
+    .filter(
+      (part): part is { type: "text"; text: string } => part.type === "text"
+    )
+    .map((part) => part.text)
+    .join("");
+
+const getCitations = (message: ChatUIMessage): StreamCitation[] =>
+  message.metadata?.citations ?? [];
 
 // react-markdown escapes raw HTML by default; these overrides only add styling
 // and keep generated links safe to open in a new tab.
@@ -118,6 +124,224 @@ const markdownComponents: Components = {
   ),
 };
 
+function StreamingChat({
+  workspaceId,
+  conversationId,
+  chatId,
+  initialMessages,
+  onFinishMessage,
+}: {
+  workspaceId: string;
+  conversationId: string | null;
+  chatId: string;
+  initialMessages: ChatUIMessage[];
+  onFinishMessage: (conversationId: string | null) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const finishedConversationId = useRef<string | null>(null);
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport<ChatUIMessage>({
+        api: "/api/chat",
+        credentials: "include",
+        prepareSendMessagesRequest: ({ messages }) => {
+          const last = messages[messages.length - 1];
+          const text = last ? getText(last) : "";
+          return {
+            api: conversationId
+              ? `/api/workspace/${workspaceId}/conversations/${conversationId}/messages/stream`
+              : `/api/workspace/${workspaceId}/conversations/stream`,
+            body: { message: text, webSearch: webSearchEnabled },
+          };
+        },
+      }),
+    [workspaceId, conversationId, webSearchEnabled]
+  );
+
+  const { messages, sendMessage, stop, status, error } = useChat<ChatUIMessage>({
+    id: chatId,
+    messages: initialMessages,
+    transport,
+    onData: (part) => {
+      if (part.type === "data-conversation") {
+        finishedConversationId.current = (
+          part.data as { conversationId: string }
+        ).conversationId;
+      }
+    },
+    onFinish: ({ isAbort, isError }) => {
+      onFinishMessage(
+        !isAbort && !isError ? finishedConversationId.current : null
+      );
+    },
+  });
+
+  const streaming = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages.length, status]);
+
+  const submitMessage = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const message = draft.trim();
+    if (!message || streaming) return;
+    finishedConversationId.current = null;
+    setDraft("");
+    void sendMessage({ text: message });
+  };
+
+  return (
+    <>
+      <div className="flex-1 space-y-4 overflow-y-auto pb-5">
+        {messages.length === 0 && (
+          <div className="flex min-h-64 flex-col items-center justify-center text-center">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-[#42D8F5]">
+              <MessageSquareText className="h-5 w-5" />
+            </div>
+            <h2 className="text-lg font-semibold">Start a conversation</h2>
+            <p className="mt-2 max-w-md text-sm text-muted-foreground">
+              Ask a question about this workspace. Answers use your indexed
+              sources and include citations.
+            </p>
+          </div>
+        )}
+
+        {messages.map((message) => {
+          const citations = getCitations(message);
+          return (
+            <article
+              key={message.id}
+              className={`max-w-3xl rounded-2xl border p-4 ${
+                message.role === "user"
+                  ? "ml-auto border-[#477BFF]/20 bg-[#477BFF]/[0.08]"
+                  : "border-white/10 bg-white/[0.03]"
+              }`}
+            >
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {message.role === "user" ? "You" : "Notebook"}
+              </p>
+              {message.role === "user" ? (
+                <p className="whitespace-pre-wrap text-sm leading-7">
+                  {getText(message)}
+                </p>
+              ) : (
+                <div className="text-sm leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <Markdown components={markdownComponents}>
+                    {getText(message)}
+                  </Markdown>
+                </div>
+              )}
+              {message.role === "assistant" && citations.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
+                  {citations.map((citation) => (
+                    <span
+                      key={`${message.id}-${citation.number}`}
+                      title={citation.excerpt}
+                      className="inline-flex items-center gap-1 rounded-lg bg-black/10 px-2 py-1 text-xs"
+                    >
+                      <span className="font-medium text-[#42D8F5]">
+                        [{citation.number}] {citation.title}
+                      </span>
+                      {citation.url && (
+                        <a
+                          href={citation.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label={`Open ${citation.title}`}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </article>
+          );
+        })}
+        {streaming && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+            {webSearchEnabled
+              ? "Searching the web and generating an answer..."
+              : "Searching workspace sources and generating an answer..."}
+          </div>
+        )}
+        <div ref={messagesEndRef} aria-hidden="true" />
+      </div>
+
+      <form onSubmit={submitMessage} className="mx-auto w-full max-w-4xl">
+        {error && (
+          <p role="alert" className="mb-2 text-sm text-red-300">
+            {getErrorMessage(error)}
+          </p>
+        )}
+        <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-[#0b101b]/80 p-2 shadow-lg">
+          <Textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Ask a question about your sources..."
+            aria-label="Your question"
+            rows={2}
+            maxLength={4000}
+            disabled={streaming}
+            className="max-h-40 min-h-12 resize-y border-0 bg-transparent focus-visible:ring-0"
+          />
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              aria-pressed={webSearchEnabled}
+              aria-label="Use web search"
+              title="Use web search"
+              disabled={streaming}
+              onClick={() => setWebSearchEnabled((enabled) => !enabled)}
+              className={
+                webSearchEnabled
+                  ? "mb-0.5 h-10 rounded-xl bg-[#42D8F5]/15 px-3 text-[#42D8F5] hover:bg-[#42D8F5]/20 hover:text-[#42D8F5]"
+                  : "mb-0.5 h-10 rounded-xl px-3 text-muted-foreground"
+              }
+            >
+              <Globe className="h-4 w-4" />
+              <span className="ml-1.5 text-xs">Web search</span>
+            </Button>
+            {streaming ? (
+              <Button
+                type="button"
+                aria-label="Stop generating"
+                title="Stop generating"
+                onClick={() => stop()}
+                className="mb-0.5 h-10 w-10 rounded-xl border border-white/15 bg-white/5 p-0 text-foreground hover:bg-white/10"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                aria-label="Send question"
+                disabled={!draft.trim()}
+                className="btn-gradient-primary mb-0.5 h-10 w-10 rounded-xl p-0"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+        <p className="mt-2 text-center text-xs text-muted-foreground/70">
+          {webSearchEnabled
+            ? "Web search is enabled for this question."
+            : "Answers are generated from indexed workspace sources."}
+        </p>
+      </form>
+    </>
+  );
+}
+
 export function WorkspaceConversation({
   workspaceId,
 }: {
@@ -128,10 +352,8 @@ export function WorkspaceConversation({
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
   >(null);
-  const [draft, setDraft] = useState("");
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [chatId, setChatId] = useState(() => `new-${crypto.randomUUID()}`);
   const [addMemoryOpen, setAddMemoryOpen] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const workspaceQuery = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -151,128 +373,46 @@ export function WorkspaceConversation({
       }
       return getConversation(workspaceId, selectedConversationId);
     },
-    enabled:
-      !!session &&
-      selectedConversationId !== null &&
-      !selectedConversationId.startsWith("optimistic-"),
+    enabled: !!session && selectedConversationId !== null,
   });
 
-  const sendMutation = useMutation({
-    mutationFn: (message: string) =>
-      selectedConversationId
-        ? sendConversationMessage(
-            workspaceId,
-            selectedConversationId,
-            message,
-            webSearchEnabled
-          )
-        : createConversation(workspaceId, message, webSearchEnabled),
-    onMutate: async (message: string) => {
-      const optimisticId = `optimistic-${crypto.randomUUID()}`;
-      const targetId = selectedConversationId ?? optimisticId;
-      const cacheKey = ["conversation", workspaceId, targetId] as const;
+  const selectedConversationReady =
+    selectedConversationId === null ||
+    conversationQuery.data?.id === selectedConversationId;
+  const activeChatId = selectedConversationReady
+    ? (selectedConversationId ?? chatId)
+    : `loading-${selectedConversationId}`;
+  const initialMessages = selectedConversationReady
+    ? toUIMessages(conversationQuery.data?.messages ?? [])
+    : [];
 
-      await queryClient.cancelQueries({ queryKey: cacheKey });
-      const previous = queryClient.getQueryData<Conversation>(cacheKey);
-      const createdAt = new Date().toISOString();
-      const optimisticMessage: ConversationMessage = {
-        id: optimisticId,
-        conversationId: targetId,
-        sequence: (previous?.messages?.length ?? 0) + 1,
-        role: "user",
-        content: message,
-        sources: [],
-        createdAt,
-      };
+  const handleFinishMessage = async (conversationId: string | null) => {
+    if (conversationId) {
+      setSelectedConversationId(conversationId);
+    }
 
-      queryClient.setQueryData<Conversation>(cacheKey, (current) => {
-        const base: Conversation = current ?? {
-          id: targetId,
-          workspaceId,
-          title: null,
-          summary: null,
-          summaryMessageCount: 0,
-          summarizedAt: null,
-          createdAt,
-          updatedAt: createdAt,
-          messages: [],
-        };
-        return {
-          ...base,
-          messages: [...(base.messages ?? []), optimisticMessage],
-        };
-      });
-
-      if (!selectedConversationId) {
-        setSelectedConversationId(targetId);
-      }
-
-      return {
-        cacheKey,
-        previous,
-        optimisticId,
-        previousSelectedId: selectedConversationId,
-      };
-    },
-    onSuccess: async (
-      conversation,
-      _message,
-      context?: SendMutationContext
-    ) => {
-      const cached = context
-        ? queryClient.getQueryData<Conversation>(context.cacheKey)
-        : undefined;
-      const merged = mergeMessages(
-        cached?.messages,
-        conversation.messages ?? [],
-        context?.optimisticId
-      );
-      const nextKey = ["conversation", workspaceId, conversation.id] as const;
-
-      queryClient.setQueryData<Conversation>(nextKey, {
-        ...conversation,
-        messages: merged,
-      });
-      if (context && context.cacheKey[2] !== conversation.id) {
-        queryClient.removeQueries({ queryKey: context.cacheKey });
-      }
-
-      setSelectedConversationId(conversation.id);
-      setDraft("");
-      await queryClient.invalidateQueries({
-        queryKey: ["conversations", workspaceId],
-      });
-    },
-    onError: (_error, _message, context?: SendMutationContext) => {
-      if (!context) {
-        return;
-      }
-
-      queryClient.setQueryData(context.cacheKey, context.previous);
-      setSelectedConversationId(context.previousSelectedId);
-    },
-  });
-
-  const conversations = conversationsQuery.data ?? [];
-  const selectedConversation = conversationQuery.data;
-  const messageCount = selectedConversation?.messages?.length ?? 0;
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [messageCount, sendMutation.isPending]);
+    await queryClient.invalidateQueries({
+      queryKey: [
+        "conversation",
+        workspaceId,
+        conversationId ?? selectedConversationId,
+      ],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["conversations", workspaceId],
+    });
+  };
 
   const startNewConversation = () => {
     setSelectedConversationId(null);
-    setDraft("");
-    sendMutation.reset();
+    setChatId(`new-${crypto.randomUUID()}`);
   };
 
-  const submitMessage = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const message = draft.trim();
-    if (!message || sendMutation.isPending) return;
-    sendMutation.mutate(message);
+  const selectConversation = (conversationId: string) => {
+    setSelectedConversationId(conversationId);
   };
+
+  const conversations = conversationsQuery.data ?? [];
 
   return (
     <div className="min-h-screen bg-app-radial text-foreground">
@@ -307,7 +447,6 @@ export function WorkspaceConversation({
               </Button>
               <Button
                 onClick={startNewConversation}
-                disabled={sendMutation.isPending}
                 className="btn-gradient-primary rounded-xl"
               >
                 <Plus className="mr-1.5 h-4 w-4" />
@@ -339,11 +478,7 @@ export function WorkspaceConversation({
                     <button
                       key={conversation.id}
                       type="button"
-                      disabled={sendMutation.isPending}
-                      onClick={() => {
-                        setSelectedConversationId(conversation.id);
-                        sendMutation.reset();
-                      }}
+                      onClick={() => selectConversation(conversation.id)}
                       className={`min-w-52 rounded-xl border p-3 text-left transition-colors lg:min-w-0 ${
                         selectedConversationId === conversation.id
                           ? "border-[#42D8F5]/30 bg-[#42D8F5]/[0.07]"
@@ -363,163 +498,26 @@ export function WorkspaceConversation({
             </aside>
 
             <main className="flex min-h-0 min-w-0 flex-1 flex-col px-4 py-4 sm:px-6 lg:px-8">
-              <div className="flex-1 space-y-4 overflow-y-auto pb-5">
-                {selectedConversationId === null ? (
-                  <div className="flex min-h-64 flex-col items-center justify-center text-center">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-[#42D8F5]">
-                      <MessageSquareText className="h-5 w-5" />
-                    </div>
-                    <h2 className="text-lg font-semibold">
-                      Start a conversation
-                    </h2>
-                    <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                      Ask a question about this workspace. Answers use your
-                      indexed sources and include citations.
-                    </p>
-                  </div>
-                ) : conversationQuery.isLoading ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Loading conversation...
-                  </p>
-                ) : conversationQuery.isError ? (
+              {!selectedConversationReady ? (
+                conversationQuery.isError ? (
                   <Card className="border-red-500/20 bg-red-500/5 p-4 text-sm text-red-200">
                     {getErrorMessage(conversationQuery.error)}
                   </Card>
                 ) : (
-                  <>
-                    {selectedConversation?.messages?.map((message) => (
-                      <article
-                        key={message.id}
-                        className={`max-w-3xl rounded-2xl border p-4 ${
-                          message.role === "user"
-                            ? "ml-auto border-[#477BFF]/20 bg-[#477BFF]/[0.08]"
-                            : "border-white/10 bg-white/[0.03]"
-                        }`}
-                      >
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          {message.role === "user" ? "You" : "Notebook"}
-                        </p>
-                        {message.role === "user" ? (
-                          <p className="whitespace-pre-wrap text-sm leading-7">
-                            {message.content}
-                          </p>
-                        ) : (
-                          <div className="text-sm leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                            <Markdown components={markdownComponents}>
-                              {message.content}
-                            </Markdown>
-                          </div>
-                        )}
-                        {message.sources.length > 0 && (
-                          <div className="mt-4 border-t border-white/10 pt-3">
-                            <p className="mb-2 text-xs font-medium text-muted-foreground">
-                              {message.sources[0]?.sourceType === "web"
-                                ? "Web sources"
-                                : "Sources"}
-                            </p>
-                            <div className="space-y-2">
-                              {message.sources.map((source) => (
-                                <div
-                                  key={`${message.id}-${source.number}`}
-                                  className="rounded-lg bg-black/10 px-3 py-2"
-                                >
-                                  <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                                    <span className="font-medium text-[#42D8F5]">
-                                      [{source.number}] {source.title}
-                                    </span>
-                                    {source.url && (
-                                      <a
-                                        href={source.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-muted-foreground hover:text-foreground"
-                                        aria-label={`Open ${source.title}`}
-                                      >
-                                        <ExternalLink className="h-3 w-3" />
-                                      </a>
-                                    )}
-                                  </div>
-                                  <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">
-                                    {source.excerpt}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </article>
-                    ))}
-                  </>
-                )}
-                {sendMutation.isPending && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                    {webSearchEnabled
-                      ? "Searching the web and generating an answer..."
-                      : "Searching workspace sources and generating an answer..."}
-                  </div>
-                )}
-                <div ref={messagesEndRef} aria-hidden="true" />
-              </div>
-
-              <form
-                onSubmit={submitMessage}
-                className="mx-auto w-full max-w-4xl"
-              >
-                {sendMutation.isError && (
-                  <p role="alert" className="mb-2 text-sm text-red-300">
-                    {getErrorMessage(sendMutation.error)}
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Loading conversation...
                   </p>
-                )}
-                <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-[#0b101b]/80 p-2 shadow-lg">
-                  <Textarea
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Ask a question about your sources..."
-                    aria-label="Your question"
-                    rows={2}
-                    maxLength={4000}
-                    disabled={sendMutation.isPending}
-                    className="max-h-40 min-h-12 resize-y border-0 bg-transparent focus-visible:ring-0"
-                  />
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      aria-pressed={webSearchEnabled}
-                      aria-label="Use web search"
-                      title="Use web search"
-                      disabled={sendMutation.isPending}
-                      onClick={() => setWebSearchEnabled((enabled) => !enabled)}
-                      className={
-                        webSearchEnabled
-                          ? "mb-0.5 h-10 rounded-xl bg-[#42D8F5]/15 px-3 text-[#42D8F5] hover:bg-[#42D8F5]/20 hover:text-[#42D8F5]"
-                          : "mb-0.5 h-10 rounded-xl px-3 text-muted-foreground"
-                      }
-                    >
-                      <Globe className="h-4 w-4" />
-                      <span className="ml-1.5 text-xs">Web search</span>
-                    </Button>
-                    <Button
-                      type="submit"
-                      aria-label="Send question"
-                      disabled={!draft.trim() || sendMutation.isPending}
-                      className="btn-gradient-primary mb-0.5 h-10 w-10 rounded-xl p-0"
-                    >
-                      {sendMutation.isPending ? (
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <p className="mt-2 text-center text-xs text-muted-foreground/70">
-                  {webSearchEnabled
-                    ? "Web search is enabled for this question."
-                    : "Answers are generated from indexed workspace sources."}
-                </p>
-              </form>
+                )
+              ) : (
+                <StreamingChat
+                  key={activeChatId}
+                  workspaceId={workspaceId}
+                  conversationId={selectedConversationId}
+                  chatId={activeChatId}
+                  initialMessages={initialMessages}
+                  onFinishMessage={handleFinishMessage}
+                />
+              )}
             </main>
           </div>
         </div>
