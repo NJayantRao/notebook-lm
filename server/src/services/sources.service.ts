@@ -10,11 +10,9 @@ import repository, {
   type SourceFilters,
 } from "../repository/sources.repository.js";
 import workspaceRepository from "../repository/workspaces.repository.js";
-import { scrapeWebsiteByUrl } from "../lib/firecrawl.js";
-import { getYouTubeTranscript, getYouTubeVideoId } from "../lib/youtube.js";
+import { getYouTubeVideoId } from "../lib/youtube.js";
 import { inngest } from "../lib/inngest.js";
-import { removeUploadedPdf, verifyPdfFile } from "../lib/multer.js";
-import { extractPdfText } from "../lib/pdf.js";
+import { removeUploadedPdf } from "../lib/multer.js";
 import { cleanupSourceResources } from "../lib/resource-cleanup.js";
 import type {
   CreateSourceInput,
@@ -62,6 +60,26 @@ const listAllSources = async (
   };
 };
 
+const markEnqueueFailure = async (
+  source: SourceRecord,
+  error: unknown,
+  message: string,
+  code: string
+): Promise<never> => {
+  console.error(`Failed to enqueue work for source ${source.id}:`, error);
+  await repository.updateSourceRecord(source.id, {
+    status: "failed",
+    metadata: {
+      ...source.metadata,
+      processingError:
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : message,
+    },
+  });
+  throw new ServiceUnavailableError(message, code);
+};
+
 const enqueueSourceIndexing = async (
   source: SourceRecord
 ): Promise<SourceRecord> => {
@@ -71,20 +89,31 @@ const enqueueSourceIndexing = async (
       data: { sourceId: source.id },
     });
   } catch (error) {
-    console.error(`Failed to enqueue indexing for source ${source.id}:`, error);
-    await repository.updateSourceRecord(source.id, {
-      status: "failed",
-      metadata: {
-        ...source.metadata,
-        processingError:
-          error instanceof Error
-            ? error.message
-            : "Source indexing could not be queued.",
-      },
-    });
-    throw new ServiceUnavailableError(
+    await markEnqueueFailure(
+      source,
+      error,
       "The source was saved, but indexing could not be scheduled. Try again later.",
       "SOURCE_INDEXING_QUEUE_FAILED"
+    );
+  }
+
+  return source;
+};
+
+const enqueueSourcePreparation = async (
+  source: SourceRecord
+): Promise<SourceRecord> => {
+  try {
+    await inngest.send({
+      name: "source/prepare.requested",
+      data: { sourceId: source.id },
+    });
+  } catch (error) {
+    await markEnqueueFailure(
+      source,
+      error,
+      "The source was saved, but processing could not be scheduled. Try again later.",
+      "SOURCE_PROCESSING_QUEUE_FAILED"
     );
   }
 
@@ -95,20 +124,18 @@ const saveWebsiteImport = async (
   workspaceId: string,
   input: ImportWebsiteSourceInput
 ) => {
-  const scraped = await scrapeWebsiteByUrl(input.url);
-
   const source = await repository.createWebsiteSource(workspaceId, {
-    title: input.title ?? scraped.title ?? new URL(scraped.url).hostname,
-    content: scraped.markdown,
-    url: scraped.url,
+    title: input.title ?? new URL(input.url).hostname,
+    content: null,
+    url: input.url,
     status: "pending",
     metadata: {
-      ...scraped.metadata,
       importedFrom: input.url,
+      useScrapedTitle: !input.title,
     },
   });
 
-  return enqueueSourceIndexing(source);
+  return enqueueSourcePreparation(source);
 };
 
 const saveYouTubeImport = async (
@@ -123,16 +150,15 @@ const saveYouTubeImport = async (
     );
   }
 
-  const content = await getYouTubeTranscript(videoId);
   const source = await repository.createYouTubeSource(workspaceId, {
     title: input.title ?? `YouTube video ${videoId}`,
-    content,
+    content: null,
     url: `https://www.youtube.com/watch?v=${videoId}`,
     status: "pending",
     metadata: { videoId, importedFrom: input.url },
   });
 
-  return enqueueSourceIndexing(source);
+  return enqueueSourcePreparation(source);
 };
 
 const createSources = async (
@@ -181,8 +207,6 @@ const uploadPdfSource = async (
 
   try {
     await requireOwnedWorkspace(userId, workspaceId);
-    await verifyPdfFile(file.path);
-    const extracted = await extractPdfText(file.path);
 
     const originalName = basename(file.originalname);
     const title = basename(originalName, extname(originalName)).trim();
@@ -190,7 +214,7 @@ const uploadPdfSource = async (
     const source = await repository.createSource(workspaceId, {
       sourceType: "pdf",
       title: title || "Uploaded PDF",
-      content: extracted.text,
+      content: null,
       status: "pending",
       metadata: {
         originalName,
@@ -200,12 +224,11 @@ const uploadPdfSource = async (
         fileName: originalName,
         fileSize: file.size,
         resourceType: "raw",
-        pageCount: extracted.pageCount,
       },
     });
     sourceCreated = true;
 
-    return await enqueueSourceIndexing(source);
+    return await enqueueSourcePreparation(source);
   } catch (error) {
     if (!sourceCreated) {
       try {

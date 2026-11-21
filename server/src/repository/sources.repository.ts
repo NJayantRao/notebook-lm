@@ -115,6 +115,9 @@ const updateSourceRecord = async (
   sourceId: string,
   update: {
     status?: Source["status"];
+    title?: string;
+    content?: string | null;
+    url?: string | null;
     metadata?: SourceMetadata;
   }
 ): Promise<boolean> => {

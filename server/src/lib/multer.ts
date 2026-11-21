@@ -102,13 +102,22 @@ export const verifyPdfFile = async (filePath: string): Promise<void> => {
 export const removeUploadedPdf = (filePath: string): Promise<void> =>
   unlink(filePath);
 
+export const getUploadedPdfPathByName = (fileName: string): string | null => {
+  const safeName = basename(fileName);
+  if (!safeName || safeName === "." || safeName === "..") {
+    return null;
+  }
+
+  return resolve(uploadDirectory, safeName);
+};
+
 export const removeUploadedPdfByName = async (
   fileName: string
 ): Promise<void> => {
-  const safeName = basename(fileName);
-  if (!safeName || safeName === "." || safeName === "..") {
+  const filePath = getUploadedPdfPathByName(fileName);
+  if (!filePath) {
     return;
   }
 
-  await unlink(resolve(uploadDirectory, safeName));
+  await unlink(filePath);
 };
