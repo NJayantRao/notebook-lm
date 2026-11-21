@@ -20,12 +20,11 @@ import workspaceRepository from "../repository/workspaces.repository.js";
 import {
   buildChatPrompt,
   CHAT_MODEL,
-  createEmbeddings,
   generateChatAnswerFromPrompt,
   rewriteSearchQuery,
   streamChatAnswer,
 } from "../lib/openai.js";
-import { querySourceChunkVectors } from "../lib/pinecone.js";
+import { searchSourceChunkDocuments } from "../lib/pinecone.js";
 import { searchWeb } from "../lib/tavily.js";
 import { searchUserMemories } from "../lib/mem0.js";
 import { inngest } from "../lib/inngest.js";
@@ -123,7 +122,7 @@ const loadUserMemories = async (
   }
 };
 
-// All retrieval (question embedding, Pinecone search, and Postgres hydration)
+// All retrieval (Pinecone search and Postgres hydration)
 // happens here before either chat path starts generating tokens.
 const prepareAnswer = async (
   userId: string,
@@ -179,35 +178,12 @@ const prepareAnswer = async (
     };
   }
 
-  // Follow-up questions such as "what about page 3?" are poor embedding
-  // queries. Rewrite them from recent history, but always embed at most one
-  // extra query and fall back to the original question on any failure.
+  // Follow-up questions such as "what about page 3?" are poor search queries.
+  // Rewrite them from recent history, falling back to the original on failure.
   const retrievalQuery = await rewriteSearchQuery(question, promptHistory);
-  let queryVector: number[] | undefined;
-  try {
-    [queryVector] = await createEmbeddings([retrievalQuery]);
-  } catch (error) {
-    if (error instanceof ServiceUnavailableError) {
-      throw error;
-    }
-
-    console.error("OpenAI query embedding failed:", error);
-    throw new BadGatewayError(
-      "The assistant could not search workspace sources. Please try again.",
-      "OPENAI_QUERY_EMBEDDING_FAILED"
-    );
-  }
-
-  if (!queryVector) {
-    throw new BadGatewayError(
-      "The assistant could not search workspace sources. Please try again.",
-      "OPENAI_QUERY_EMBEDDING_FAILED"
-    );
-  }
-
-  const matches = await querySourceChunkVectors(
+  const matches = await searchSourceChunkDocuments(
     workspaceId,
-    queryVector,
+    retrievalQuery,
     RETRIEVAL_TOP_K
   );
   type ScoredMatch = { id: string; score: number };

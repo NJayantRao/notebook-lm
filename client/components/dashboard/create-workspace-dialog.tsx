@@ -70,7 +70,7 @@ export function CreateWorkspaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="border-white/10 bg-[#101522] text-foreground sm:max-w-md">
+      <DialogContent className="border-white/10 bg-[#1f1e1c] text-foreground sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
             Create workspace
@@ -105,7 +105,7 @@ export function CreateWorkspaceDialog({
               placeholder="What is this workspace for?"
               disabled={mutation.isPending}
               rows={3}
-              className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus-visible:border-[#477BFF]/50 focus-visible:ring-3 focus-visible:ring-[#477BFF]/30 disabled:opacity-50"
+              className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus-visible:border-[#ea580c]/50 focus-visible:ring-3 focus-visible:ring-[#ea580c]/30 disabled:opacity-50"
             />
           </div>
 

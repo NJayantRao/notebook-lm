@@ -6,10 +6,10 @@ import sourceChunksRepository, {
   type NewSourceChunk,
   type SourceChunkContent,
 } from "../repository/source-chunks.repository.js";
-import { createEmbeddings, EMBEDDING_MODEL } from "../lib/openai.js";
+import { EMBEDDING_MODEL } from "../lib/openai.js";
 import {
   deleteSourceVectors,
-  upsertSourceChunkVectors,
+  upsertSourceChunkDocuments,
 } from "../lib/pinecone.js";
 
 const CHUNK_SIZE = 450;
@@ -166,16 +166,11 @@ const indexSourceChunkBatch = async (
         : undefined;
     return `${source.title}\n\n${heading ? `${heading}\n\n` : ""}${sourceChunk.content}`;
   });
-  const embeddings = await createEmbeddings(embeddingInputs);
-  if (embeddings.length !== chunks.length) {
-    throw new Error("Embedding count did not match the source chunk count.");
-  }
-
-  await upsertSourceChunkVectors(
+  await upsertSourceChunkDocuments(
     source.workspaceId,
     chunks.map((sourceChunk, index) => ({
       id: sourceChunk.id,
-      values: embeddings[index]!,
+      text: embeddingInputs[index]!,
       metadata: {
         sourceId: source.id,
         workspaceId: source.workspaceId,

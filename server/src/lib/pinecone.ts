@@ -1,11 +1,10 @@
 import { Pinecone } from "@pinecone-database/pinecone";
 import { ENV } from "../config/env.js";
 import { ServiceUnavailableError } from "../utils/api-error.js";
-import { EMBEDDING_DIMENSIONS } from "./openai.js";
 
-type SourceChunkVector = {
+type SourceChunkDocument = {
   id: string;
-  values: number[];
+  text: string;
   metadata: {
     sourceId: string;
     workspaceId: string;
@@ -36,32 +35,33 @@ export const deleteSourceVectors = async (
   workspaceId: string,
   sourceId: string
 ): Promise<void> => {
-  await getWorkspaceIndex(workspaceId).deleteMany({
-    filter: { sourceId },
+  await getWorkspaceIndex(workspaceId).documents.delete({
+    filter: { sourceId: { $eq: sourceId } },
   });
 };
 
 export const deleteWorkspaceVectors = async (
   workspaceId: string
 ): Promise<void> => {
-  await getWorkspaceIndex(workspaceId).deleteAll();
+  await getWorkspaceIndex(workspaceId).documents.delete({
+    deleteAll: true,
+  });
 };
 
-export const querySourceChunkVectors = async (
+export const searchSourceChunkDocuments = async (
   workspaceId: string,
-  vector: number[],
+  query: string,
   topK: number
 ): Promise<Array<{ id: string; score?: number }>> => {
   try {
-    const result = await getWorkspaceIndex(workspaceId).query({
-      vector,
+    const result = await getWorkspaceIndex(workspaceId).documents.search({
+      scoreBy: [{ type: "embed", field: "chunk_text", query }],
       topK,
-      includeMetadata: false,
     });
 
     return result.matches.flatMap((match) =>
-      match.id
-        ? [{ id: match.id, ...(match.score === undefined ? {} : { score: match.score }) }]
+      typeof match._score === "number"
+        ? [{ id: match._id, score: match._score }]
         : []
     );
   } catch (error) {
@@ -77,25 +77,20 @@ export const querySourceChunkVectors = async (
   }
 };
 
-export const upsertSourceChunkVectors = async (
+export const upsertSourceChunkDocuments = async (
   workspaceId: string,
-  vectors: SourceChunkVector[]
+  documents: SourceChunkDocument[]
 ): Promise<void> => {
-  if (vectors.length === 0) {
+  if (documents.length === 0) {
     return;
   }
 
-  if (
-    vectors.some(
-      (vector) =>
-        vector.values.length !== EMBEDDING_DIMENSIONS ||
-        !vector.values.every(Number.isFinite)
-    )
-  ) {
-    throw new Error(
-      `Pinecone vectors must contain ${EMBEDDING_DIMENSIONS} finite values.`
-    );
-  }
-
-  await getWorkspaceIndex(workspaceId).upsert({ records: vectors });
+  await getWorkspaceIndex(workspaceId).documents.upsert({
+    documents: documents.map((document) => ({
+      _id: document.id,
+      chunk_text: document.text,
+      title: document.metadata.sourceTitle,
+      ...document.metadata,
+    })),
+  });
 };

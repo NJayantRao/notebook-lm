@@ -1,5 +1,11 @@
 import { api, type ApiEnvelope } from "@/lib/api";
-import type { Source, SourcesPage } from "@/lib/types";
+import type { Source, SourceListItem, SourcesPage } from "@/lib/types";
+
+export type CreateTextSourceInput = {
+  sourceType: "text" | "markdown";
+  title: string;
+  content: string;
+};
 
 export type ImportWebsiteSourceInput = {
   url: string;
@@ -37,6 +43,20 @@ export type ListSourcesParams = {
   limit?: number;
 };
 
+export async function createTextSource(
+  workspaceId: string,
+  input: CreateTextSourceInput
+): Promise<Source> {
+  const res = await api.post<ApiEnvelope<Source>>(
+    `/api/workspace/${workspaceId}`,
+    input
+  );
+  if (!res.data.data) {
+    throw new Error(res.data.message || "Failed to add source");
+  }
+  return res.data.data;
+}
+
 export async function listSources(
   workspaceId: string,
   params: ListSourcesParams = {}
@@ -57,6 +77,25 @@ export async function listSources(
       },
     }
   );
+}
+
+export async function listAllWorkspaceSources(
+  workspaceId: string
+): Promise<SourceListItem[]> {
+  const firstPage = await listSources(workspaceId, { page: 1, limit: 100 });
+  if (firstPage.pagination.totalPages <= 1) {
+    return firstPage.sources;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: firstPage.pagination.totalPages - 1 }, (_, index) =>
+      listSources(workspaceId, { page: index + 2, limit: 100 })
+    )
+  );
+  return [
+    ...firstPage.sources,
+    ...remainingPages.flatMap((page) => page.sources),
+  ];
 }
 
 export async function importWebsiteSource(

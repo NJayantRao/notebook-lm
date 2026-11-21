@@ -1,138 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { OverviewCards } from "@/components/dashboard/overview-cards";
-import { WorkspaceGrid } from "@/components/dashboard/workspace-grid";
-import { RecentSources } from "@/components/dashboard/recent-sources";
-import { CreateWorkspaceDialog } from "@/components/dashboard/create-workspace-dialog";
-import { AddWebsiteSourceDialog } from "@/components/dashboard/add-website-source-dialog";
-import { AddYouTubeSourceDialog } from "@/components/dashboard/add-youtube-source-dialog";
-import { UploadPdfSourceDialog } from "@/components/dashboard/upload-pdf-source-dialog";
-import { useAuthSession } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import { DashboardTopbar } from "@/components/dashboard/dashboard-topbar";
+import { WorkspaceGrid } from "@/components/dashboard/workspace-grid";
+import { useAuthSession } from "@/hooks/use-auth";
 import { listWorkspaces } from "@/services/workspace.service";
-import { listSources } from "@/services/source.service";
-import type { SourceListItem } from "@/lib/types";
 
 export function DashboardShell() {
   const { data: session } = useAuthSession();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [addWebsiteOpen, setAddWebsiteOpen] = useState(false);
-  const [addYouTubeOpen, setAddYouTubeOpen] = useState(false);
-  const [uploadPdfOpen, setUploadPdfOpen] = useState(false);
 
+  // The API only returns workspaces owned by the signed-in user. The user id is
+  // part of the key so a different account never sees a cached list.
   const workspacesQuery = useQuery({
-    queryKey: ["workspaces"],
+    queryKey: ["workspaces", session?.user?.id],
     queryFn: listWorkspaces,
     enabled: !!session,
   });
 
-  const workspaces = workspacesQuery.data ?? [];
-
-  const sourcesQuery = useQuery({
-    queryKey: ["recent-sources", workspaces.map((w) => w.id).join(",")],
-    queryFn: async () => {
-      if (workspaces.length === 0) {
-        return {
-          sources: [] as SourceListItem[],
-          totalSources: 0,
-          processedSources: 0,
-        };
-      }
-
-      const pages = await Promise.all(
-        workspaces.map((w) => listSources(w.id, { limit: 5, page: 1 }))
-      );
-      const sources = pages
-        .flatMap((page) => page.sources)
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )
-        .slice(0, 8);
-
-      return {
-        sources,
-        totalSources: pages.reduce(
-          (sum, page) => sum + page.pagination.total,
-          0
-        ),
-        processedSources: pages.reduce(
-          (sum, page) => sum + page.pagination.readyCount,
-          0
-        ),
-      };
-    },
-    enabled: !!session && workspacesQuery.isSuccess,
-    refetchInterval: (query) =>
-      query.state.data?.sources.some(
-        (source) =>
-          source.status === "pending" || source.status === "processing"
-      )
-        ? 3000
-        : false,
-  });
-
-  const allSources = sourcesQuery.data?.sources ?? [];
-  const totalSources = sourcesQuery.data?.totalSources ?? 0;
-  const processedSources = sourcesQuery.data?.processedSources ?? 0;
-
   return (
     <div className="min-h-screen bg-app-radial text-foreground">
-      <div className="flex min-h-screen">
-        <DashboardSidebar user={session?.user} />
+      <DashboardTopbar user={session?.user} />
 
-        <div className="flex min-h-screen flex-1 flex-col">
-          <DashboardHeader
-            userName={session?.user?.name}
-            onNewWorkspace={() => setCreateOpen(true)}
-            onAddWebsite={() => setAddWebsiteOpen(true)}
-            onAddYouTube={() => setAddYouTubeOpen(true)}
-            onUploadPdf={() => setUploadPdfOpen(true)}
-          />
-
-          <main className="flex-1 space-y-8 px-4 py-6 sm:px-6 lg:px-8">
-            <OverviewCards
-              totalWorkspaces={workspaces.length}
-              totalSources={totalSources}
-              processedSources={processedSources}
-              loading={workspacesQuery.isLoading || sourcesQuery.isLoading}
-            />
-
-            <WorkspaceGrid
-              workspaces={workspaces}
-              loading={workspacesQuery.isLoading}
-              error={workspacesQuery.isError ? workspacesQuery.error : null}
-              onCreate={() => setCreateOpen(true)}
-            />
-
-            <RecentSources
-              sources={allSources}
-              loading={sourcesQuery.isLoading && workspaces.length > 0}
-              hasWorkspaces={workspaces.length > 0}
-            />
-          </main>
-        </div>
-      </div>
-
-      <CreateWorkspaceDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <AddWebsiteSourceDialog
-        open={addWebsiteOpen}
-        onOpenChange={setAddWebsiteOpen}
-        workspaces={workspaces}
-      />
-      <AddYouTubeSourceDialog
-        open={addYouTubeOpen}
-        onOpenChange={setAddYouTubeOpen}
-        workspaces={workspaces}
-      />
-      <UploadPdfSourceDialog
-        open={uploadPdfOpen}
-        onOpenChange={setUploadPdfOpen}
-        workspaces={workspaces}
-      />
+      <main className="mx-auto w-full max-w-[1280px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <WorkspaceGrid
+          workspaces={workspacesQuery.data ?? []}
+          loading={workspacesQuery.isLoading}
+          error={workspacesQuery.isError ? workspacesQuery.error : null}
+        />
+      </main>
     </div>
   );
 }

@@ -57,7 +57,7 @@ export function AddMemoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="border-white/10 bg-[#101522] text-foreground sm:max-w-md">
+      <DialogContent className="border-border bg-popover text-foreground sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
             Add a memory
@@ -92,7 +92,7 @@ export function AddMemoryDialog({
             </p>
           )}
 
-          <DialogFooter className="border-white/10 bg-white/[0.02]">
+          <DialogFooter className="border-border bg-muted/40">
             <Button
               type="button"
               variant="outline"
@@ -105,7 +105,7 @@ export function AddMemoryDialog({
             <Button
               type="submit"
               disabled={!content.trim() || mutation.isPending}
-              className="btn-gradient-primary"
+              className="bg-foreground text-background hover:bg-foreground/90"
             >
               {mutation.isPending ? (
                 <>

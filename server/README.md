@@ -82,15 +82,17 @@ Inngest functions are registered in `src/app.ts`:
   YouTube transcripts, and extracts PDF text. It saves the prepared content,
   then enqueues indexing. Expensive preparation no longer runs inside the HTTP
   request.
-- `source/index.requested` (`index-source`) splits text into 800-token chunks
-  with 100-token overlap, stores them in PostgreSQL, embeds them with OpenAI
-  `text-embedding-3-small` at 1532 dimensions, and upserts vectors to the
-  workspace's Pinecone namespace. It moves a source from `pending` through
-  `processing` to `ready`; exhausted failures are marked `failed`.
+- `source/index.requested` (`index-source`) splits text into chunks, stores
+  them in PostgreSQL, and upserts documents to the workspace's Pinecone
+  namespace. Pinecone embeds their `chunk_text` field using its integrated
+  `text-embedding-3-small` model. It moves a source from
+  `pending` through `processing` to `ready`; exhausted failures are marked
+  `failed`.
 - `conversation/memory.refresh.requested` (`refresh-user-memory`) updates Mem0
   memories after every 16 user messages.
 
-The Pinecone index must be a dense-vector index with 1532 dimensions.
+The Pinecone index must have a document schema with an integrated
+`text-embedding-3-small` `chunk_text` field and a `title` string field.
 
 ## Runtime behavior
 

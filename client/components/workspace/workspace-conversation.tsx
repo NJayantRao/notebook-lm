@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import axios from "axios";
-import Link from "next/link";
 import Markdown, { type Components } from "react-markdown";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
-  ArrowLeft,
   ExternalLink,
   Globe,
   LoaderCircle,
@@ -17,26 +15,24 @@ import {
   Square,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import { DashboardTopbar } from "@/components/dashboard/dashboard-topbar";
 import { AddMemoryDialog } from "@/components/workspace/add-memory-dialog";
 import { MemoriesDialog } from "@/components/workspace/memories-dialog";
+import { StudyStudioPanel } from "@/components/workspace/study-studio-panel";
+import { WorkspaceSourcesSidebar } from "@/components/workspace/workspace-sources-sidebar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthSession } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api";
 import type { ConversationMessage, StreamCitation } from "@/lib/types";
-import { getConversation, listConversations } from "@/services/conversation.service";
+import {
+  getConversation,
+  listConversations,
+} from "@/services/conversation.service";
 import { getWorkspaceById } from "@/services/workspace.service";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-function formatConversationDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(new Date(value));
-}
 
 function formatClipTime(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
@@ -134,7 +130,7 @@ const buildMarkdownComponents = (messageId: string): Components => ({
               .getElementById(`${messageId}-${number}`)
               ?.scrollIntoView({ behavior: "smooth", block: "center" });
           }}
-          className="mx-0.5 inline-flex min-w-5 items-center justify-center rounded-md bg-[#42D8F5]/15 px-1.5 py-0.5 align-baseline text-xs font-medium text-[#42D8F5] no-underline"
+          className="mx-0.5 inline-flex min-w-5 items-center justify-center rounded-md bg-white/[0.08] px-1.5 py-0.5 align-baseline text-xs font-medium text-foreground no-underline"
         >
           {children}
         </a>
@@ -147,7 +143,7 @@ const buildMarkdownComponents = (messageId: string): Components => ({
         title={title}
         target="_blank"
         rel="noreferrer noopener"
-        className="break-words text-[#42D8F5] underline underline-offset-2"
+        className="break-words text-foreground underline underline-offset-2"
       >
         {children}
       </a>
@@ -234,23 +230,25 @@ function StreamingChat({
     [workspaceId, conversationId, webSearchEnabled]
   );
 
-  const { messages, sendMessage, stop, status, error } = useChat<ChatUIMessage>({
-    id: chatId,
-    messages: initialMessages,
-    transport,
-    onData: (part) => {
-      if (part.type === "data-conversation") {
-        finishedConversationId.current = (
-          part.data as { conversationId: string }
-        ).conversationId;
-      }
-    },
-    onFinish: ({ isAbort, isError }) => {
-      onFinishMessage(
-        !isAbort && !isError ? finishedConversationId.current : null
-      );
-    },
-  });
+  const { messages, sendMessage, stop, status, error } = useChat<ChatUIMessage>(
+    {
+      id: chatId,
+      messages: initialMessages,
+      transport,
+      onData: (part) => {
+        if (part.type === "data-conversation") {
+          finishedConversationId.current = (
+            part.data as { conversationId: string }
+          ).conversationId;
+        }
+      },
+      onFinish: ({ isAbort, isError }) => {
+        onFinishMessage(
+          !isAbort && !isError ? finishedConversationId.current : null
+        );
+      },
+    }
+  );
 
   const streaming = status === "submitted" || status === "streaming";
   const lastMessage = messages[messages.length - 1];
@@ -274,7 +272,7 @@ function StreamingChat({
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-5">
         {messages.length === 0 && (
           <div className="flex min-h-64 flex-col items-center justify-center text-center">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-[#42D8F5]">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card text-foreground/80">
               <MessageSquareText className="h-5 w-5" />
             </div>
             <h2 className="text-lg font-semibold">Start a conversation</h2>
@@ -299,34 +297,36 @@ function StreamingChat({
           return (
             <article
               key={message.id}
-              className={`max-w-3xl rounded-2xl border p-4 ${
+              className={`max-w-4xl rounded-2xl border p-4 ${
                 message.role === "user"
-                  ? "ml-auto border-[#477BFF]/20 bg-[#477BFF]/[0.08]"
-                  : "border-white/10 bg-white/[0.03]"
+                  ? "ml-auto border-border bg-card"
+                  : "border-border bg-card"
               }`}
             >
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {message.role === "user" ? "You" : "Notebook"}
+                {message.role === "user" ? "You" : "Assistant"}
               </p>
               {message.role === "user" ? (
-                <p className="whitespace-pre-wrap text-sm leading-7">{text}</p>
+                <p className="whitespace-pre-wrap text-base leading-relaxed">
+                  {text}
+                </p>
               ) : (
-                <div className="text-sm leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <div className="text-base leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                   <Markdown components={buildMarkdownComponents(message.id)}>
                     {markdown}
                   </Markdown>
                 </div>
               )}
               {message.role === "assistant" && citations.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
+                <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border pt-3">
                   {citations.map((citation) => (
                     <span
                       key={`${message.id}-${citation.number}`}
                       id={`${message.id}-${citation.number}`}
                       title={`${citation.excerpt}${citationSuffix(citation)}`}
-                      className="inline-flex scroll-mt-24 items-center gap-1 rounded-lg bg-black/10 px-2 py-1 text-xs"
+                      className="inline-flex scroll-mt-24 items-center gap-1 rounded-lg bg-muted px-2 py-1 text-xs"
                     >
-                      <span className="font-medium text-[#42D8F5]">
+                      <span className="font-medium text-foreground/90">
                         [{citation.number}] {citation.title}
                         {citationSuffix(citation)}
                       </span>
@@ -359,13 +359,16 @@ function StreamingChat({
         <div ref={messagesEndRef} aria-hidden="true" />
       </div>
 
-      <form onSubmit={submitMessage} className="mx-auto w-full shrink-0 max-w-4xl">
+      <form
+        onSubmit={submitMessage}
+        className="mx-auto w-full shrink-0 max-w-5xl"
+      >
         {error && (
           <p role="alert" className="mb-2 text-sm text-red-300">
             {getErrorMessage(error)}
           </p>
         )}
-        <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-[#0b101b]/80 p-2 shadow-lg">
+        <div className="flex items-end gap-2 rounded-2xl border border-border bg-card/80 p-2 shadow-lg">
           <Textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -384,7 +387,7 @@ function StreamingChat({
             rows={2}
             maxLength={4000}
             disabled={streaming}
-            className="max-h-40 min-h-12 resize-y border-0 bg-transparent focus-visible:ring-0"
+            className="max-h-40 min-h-12 resize-y border-0 bg-transparent text-base md:text-base focus-visible:ring-0"
           />
           <div className="flex shrink-0 items-center gap-1">
             <Button
@@ -397,7 +400,7 @@ function StreamingChat({
               onClick={() => setWebSearchEnabled((enabled) => !enabled)}
               className={
                 webSearchEnabled
-                  ? "mb-0.5 h-10 rounded-xl bg-[#42D8F5]/15 px-3 text-[#42D8F5] hover:bg-[#42D8F5]/20 hover:text-[#42D8F5]"
+                  ? "mb-0.5 h-10 rounded-xl bg-white/[0.08] px-3 text-foreground hover:bg-white/[0.12] hover:text-foreground"
                   : "mb-0.5 h-10 rounded-xl px-3 text-muted-foreground"
               }
             >
@@ -419,7 +422,7 @@ function StreamingChat({
                 type="submit"
                 aria-label="Send question"
                 disabled={!draft.trim()}
-                className="btn-gradient-primary mb-0.5 h-10 w-10 rounded-xl p-0"
+                className="mb-0.5 h-10 w-10 rounded-xl bg-foreground p-0 text-background hover:bg-foreground/90"
               >
                 <Send className="h-4 w-4" />
               </Button>
@@ -454,6 +457,7 @@ export function WorkspaceConversation({
   );
   const [addMemoryOpen, setAddMemoryOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false);
+  const [sourcesSidebarOpen, setSourcesSidebarOpen] = useState(true);
 
   const workspaceQuery = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -519,121 +523,95 @@ export function WorkspaceConversation({
   };
 
   const conversations = conversationsQuery.data ?? [];
+  const selectedConversationTitle =
+    conversations.find(
+      (conversation) => conversation.id === selectedConversationId
+    )?.title ?? "New conversation";
 
   return (
-    <div className="h-dvh overflow-hidden bg-app-radial text-foreground">
-      <div className="flex h-dvh">
-        <DashboardSidebar user={session?.user} />
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+      <DashboardTopbar
+        user={session?.user}
+        onToggleSidebar={() => setSourcesSidebarOpen((open) => !open)}
+      />
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        {sourcesSidebarOpen && (
+          <WorkspaceSourcesSidebar
+            workspaceId={workspaceId}
+            workspaceTitle={workspaceQuery.data?.title ?? "Workspace"}
+            enabled={!!session}
+            conversations={conversations}
+            conversationsLoading={conversationsQuery.isLoading}
+            conversationsError={
+              conversationsQuery.isError ? conversationsQuery.error : null
+            }
+            selectedConversationId={selectedConversationId}
+            onSelectConversation={selectConversation}
+          />
+        )}
 
-        <div className="flex h-dvh min-w-0 flex-1 flex-col">
-          <header className="flex flex-wrap shrink-0 items-center justify-between gap-3 border-b border-white/5 bg-[#05070d]/40 px-4 pb-4 pt-16 backdrop-blur-sm sm:px-6 lg:pt-6">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background/70 px-4 py-2.5 sm:px-6">
             <div className="min-w-0">
-              <Link
-                href="/dashboard"
-                className="mb-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Dashboard
-              </Link>
-              <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
-                {workspaceQuery.data?.title ?? "Workspace"}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Ask questions grounded in indexed workspace sources.
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Chat
+              </p>
+              <p className="truncate text-sm font-medium">
+                {selectedConversationTitle}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1">
               <Button
                 variant="outline"
                 onClick={() => setAddMemoryOpen(true)}
-                className="rounded-xl border-white/10 bg-white/[0.03] hover:bg-white/[0.07]"
+                className="h-9 rounded-lg border-border bg-card/70 px-2.5 sm:px-3"
               >
                 <Plus className="mr-1 h-4 w-4" />
-                Add memory
+                <span className="hidden sm:inline">Add memory</span>
+                <span className="sm:hidden">Memory</span>
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => setMemoriesOpen(true)}
-                className="rounded-xl text-muted-foreground hover:text-foreground"
+                className="h-9 rounded-lg px-2.5 text-muted-foreground hover:text-foreground sm:px-3"
               >
                 Memories
               </Button>
               <Button
                 onClick={startNewConversation}
-                className="btn-gradient-primary rounded-xl"
+                className="h-9 rounded-lg bg-foreground px-2.5 text-background hover:bg-foreground/90 sm:px-3"
               >
-                <Plus className="mr-1.5 h-4 w-4" />
-                New conversation
+                <Plus className="mr-1 h-4 w-4" />
+                <span className="hidden sm:inline">New conversation</span>
+                <span className="sm:hidden">New</span>
               </Button>
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <aside className="min-h-0 border-b border-white/5 p-3 lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-              <p className="px-2 pb-2 pt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Conversation history
-              </p>
-              {conversationsQuery.isLoading ? (
-                <p className="px-2 py-3 text-sm text-muted-foreground">
-                  Loading conversations...
-                </p>
-              ) : conversationsQuery.isError ? (
-                <p className="px-2 py-3 text-sm text-red-300">
-                  {getErrorMessage(conversationsQuery.error)}
-                </p>
-              ) : conversations.length === 0 ? (
-                <p className="px-2 py-3 text-sm text-muted-foreground">
-                  Your conversations will appear here.
-                </p>
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-5 sm:py-4 lg:px-8">
+            {!selectedConversationReady ? (
+              conversationQuery.isError ? (
+                <Card className="border-red-500/20 bg-red-500/5 p-4 text-sm text-red-200">
+                  {getErrorMessage(conversationQuery.error)}
+                </Card>
               ) : (
-                <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
-                  {conversations.map((conversation) => (
-                    <button
-                      key={conversation.id}
-                      type="button"
-                      onClick={() => selectConversation(conversation.id)}
-                      className={`min-w-52 rounded-xl border p-3 text-left transition-colors lg:min-w-0 ${
-                        selectedConversationId === conversation.id
-                          ? "border-[#42D8F5]/30 bg-[#42D8F5]/[0.07]"
-                          : "border-white/5 bg-white/[0.02] hover:bg-white/[0.05]"
-                      }`}
-                    >
-                      <span className="block truncate text-sm font-medium">
-                        {conversation.title || "New conversation"}
-                      </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {formatConversationDate(conversation.updatedAt)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </aside>
-
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 lg:px-8">
-              {!selectedConversationReady ? (
-                conversationQuery.isError ? (
-                  <Card className="border-red-500/20 bg-red-500/5 p-4 text-sm text-red-200">
-                    {getErrorMessage(conversationQuery.error)}
-                  </Card>
-                ) : (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Loading conversation...
-                  </p>
-                )
-              ) : (
-                <StreamingChat
-                  key={chatSessionKey}
-                  workspaceId={workspaceId}
-                  conversationId={selectedConversationId}
-                  chatId={chatSessionKey}
-                  initialMessages={initialMessages}
-                  onFinishMessage={handleFinishMessage}
-                />
-              )}
-            </main>
-          </div>
-        </div>
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Loading conversation...
+                </p>
+              )
+            ) : (
+              <StreamingChat
+                key={chatSessionKey}
+                workspaceId={workspaceId}
+                conversationId={selectedConversationId}
+                chatId={chatSessionKey}
+                initialMessages={initialMessages}
+                onFinishMessage={handleFinishMessage}
+              />
+            )}
+          </section>
+        </main>
+        <StudyStudioPanel />
       </div>
       <AddMemoryDialog open={addMemoryOpen} onOpenChange={setAddMemoryOpen} />
       <MemoriesDialog open={memoriesOpen} onOpenChange={setMemoriesOpen} />

@@ -9,7 +9,6 @@ import {
 } from "../utils/api-error.js";
 
 export const EMBEDDING_MODEL = "text-embedding-3-small";
-export const EMBEDDING_DIMENSIONS = 1532;
 export const CHAT_MODEL = "gpt-4o-mini";
 
 export type ConversationTurn = {
@@ -23,45 +22,13 @@ const getOpenAIClient = (): OpenAI => {
   const apiKey = ENV.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     throw new ServiceUnavailableError(
-      "OpenAI embeddings are not configured.",
+      "OpenAI is not configured.",
       "OPENAI_NOT_CONFIGURED"
     );
   }
 
   client ??= new OpenAI({ apiKey, timeout: 30_000 });
   return client;
-};
-
-export const createEmbeddings = async (
-  texts: string[]
-): Promise<number[][]> => {
-  if (texts.length === 0) {
-    return [];
-  }
-
-  const response = await getOpenAIClient().embeddings.create({
-    model: EMBEDDING_MODEL,
-    dimensions: EMBEDDING_DIMENSIONS,
-    input: texts,
-  });
-
-  const orderedEmbeddings = [...response.data].sort(
-    (left, right) => left.index - right.index
-  );
-
-  if (
-    orderedEmbeddings.length !== texts.length ||
-    orderedEmbeddings.some(
-      (item, index) => item.index !== index
-    ) ||
-    orderedEmbeddings.some(
-      (item) => item.embedding.length !== EMBEDDING_DIMENSIONS
-    )
-  ) {
-    throw new Error("OpenAI returned embeddings with an unexpected shape.");
-  }
-
-  return orderedEmbeddings.map(({ embedding }) => embedding);
 };
 
 export type ChatPrompt = {

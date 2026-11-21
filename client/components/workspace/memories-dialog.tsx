@@ -89,7 +89,7 @@ export function MemoriesDialog({
           onOpenChange(next);
         }}
       >
-        <DialogContent className="border-white/10 bg-[#101522] text-foreground sm:max-w-lg">
+        <DialogContent className="border-border bg-popover text-foreground sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">
               Your memories
@@ -211,7 +211,7 @@ export function MemoriesDialog({
           if (!next) setDeletingId(null);
         }}
       >
-        <AlertDialogContent className="border-white/10 bg-[#101522] text-foreground">
+        <AlertDialogContent className="border-border bg-popover text-foreground">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this memory?</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">

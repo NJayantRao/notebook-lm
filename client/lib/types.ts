@@ -12,7 +12,7 @@ export type Workspace = {
 export type WorkspaceListItem = Pick<
   Workspace,
   "id" | "title" | "description" | "icon" | "createdAt"
->;
+> & { sourceCount?: number };
 
 export type SourceType = "text" | "markdown" | "pdf" | "website" | "yt_url";
 export type SourceStatus = "pending" | "processing" | "failed" | "ready";

@@ -1,8 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { InternalServerError } from "../utils/api-error.js";
 import db from "../db/index.js";
-import { workspace } from "../db/schema.js";
+import { source, workspace } from "../db/schema.js";
 import type {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
@@ -12,7 +12,7 @@ type Workspace = typeof workspace.$inferSelect;
 export type WorkspaceListItem = Pick<
   Workspace,
   "id" | "title" | "description" | "icon" | "createdAt"
->;
+> & { sourceCount: number };
 
 const findWorkspacesByUserId = async (
   userId: string
@@ -24,6 +24,10 @@ const findWorkspacesByUserId = async (
       description: workspace.description,
       icon: workspace.icon,
       createdAt: workspace.createdAt,
+      sourceCount:
+        sql<number>`(select count(*)::int from ${source} where ${source.workspaceId} = ${workspace.id})`.mapWith(
+          Number
+        ),
     })
     .from(workspace)
     .where(eq(workspace.userId, userId))

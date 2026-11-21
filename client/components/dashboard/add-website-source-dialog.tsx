@@ -78,10 +78,10 @@ export function AddWebsiteSourceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="border-white/10 bg-[#101522] text-foreground sm:max-w-md">
+      <DialogContent className="border-white/10 bg-[#1f1e1c] text-foreground sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
-            <Globe className="h-4 w-4 text-[#42D8F5]" />
+            <Globe className="h-4 w-4 text-[#fb923c]" />
             Add a website
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -105,7 +105,7 @@ export function AddWebsiteSourceDialog({
                     setSelectedWorkspaceId(event.target.value)
                   }
                   disabled={mutation.isPending}
-                  className="h-10 w-full rounded-xl border border-white/10 bg-[#101522] px-3 text-sm text-foreground outline-none focus-visible:border-[#477BFF]/50 focus-visible:ring-3 focus-visible:ring-[#477BFF]/30 disabled:opacity-50"
+                  className="h-10 w-full rounded-xl border border-white/10 bg-[#1f1e1c] px-3 text-sm text-foreground outline-none focus-visible:border-[#ea580c]/50 focus-visible:ring-3 focus-visible:ring-[#ea580c]/30 disabled:opacity-50"
                   required
                 >
                   <option value="" disabled>
