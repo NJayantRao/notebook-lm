@@ -15,6 +15,7 @@ import { getYouTubeTranscript, getYouTubeVideoId } from "../lib/youtube.js";
 import { inngest } from "../lib/inngest.js";
 import { removeUploadedPdf, verifyPdfFile } from "../lib/multer.js";
 import { extractPdfText } from "../lib/pdf.js";
+import { cleanupSourceResources } from "../lib/resource-cleanup.js";
 import type {
   CreateSourceInput,
   ImportWebsiteSourceInput,
@@ -224,7 +225,13 @@ const uploadPdfSource = async (
 const bulkDeleteSources = async (userId: string, workspaceId: string) => {
   await requireOwnedWorkspace(userId, workspaceId);
 
-  return repository.deleteAllSourcesByWorkspaceId(workspaceId);
+  const deletedSources =
+    await repository.deleteAllSourcesByWorkspaceId(workspaceId);
+  for (const deletedSource of deletedSources) {
+    await cleanupSourceResources(deletedSource);
+  }
+
+  return deletedSources.length;
 };
 
 const deleteSource = async (
@@ -242,6 +249,8 @@ const deleteSource = async (
   if (!result) {
     throw new NotFoundError("Source not found", SOURCE_NOT_FOUND);
   }
+
+  await cleanupSourceResources(result);
 
   return result;
 };

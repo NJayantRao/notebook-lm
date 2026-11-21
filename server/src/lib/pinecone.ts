@@ -41,6 +41,12 @@ export const deleteSourceVectors = async (
   });
 };
 
+export const deleteWorkspaceVectors = async (
+  workspaceId: string
+): Promise<void> => {
+  await getWorkspaceIndex(workspaceId).deleteAll();
+};
+
 export const querySourceChunkVectors = async (
   workspaceId: string,
   vector: number[],

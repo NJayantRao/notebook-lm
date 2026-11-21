@@ -1,5 +1,7 @@
 import { NotFoundError } from "../utils/api-error.js";
 import repository from "../repository/workspaces.repository.js";
+import sourcesRepository from "../repository/sources.repository.js";
+import { cleanupWorkspaceResources } from "../lib/resource-cleanup.js";
 import type {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
@@ -41,11 +43,16 @@ const updateWorkspace = async (
 };
 
 const deleteWorkspace = async (userId: string, workspaceId: string) => {
+  await getWorkspaceById(userId, workspaceId);
+  const sources =
+    await sourcesRepository.findSourceCleanupDataByWorkspaceId(workspaceId);
   const result = await repository.deleteWorkspace(workspaceId, userId);
 
   if (!result) {
     throw new NotFoundError("Workspace not found", WORKSPACE_NOT_FOUND);
   }
+
+  await cleanupWorkspaceResources(workspaceId, sources);
 
   return result;
 };

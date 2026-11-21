@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, open, unlink } from "node:fs/promises";
-import { dirname, extname, resolve } from "node:path";
+import { basename, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import multer from "multer";
 import type { RequestHandler } from "express";
@@ -101,3 +101,14 @@ export const verifyPdfFile = async (filePath: string): Promise<void> => {
 
 export const removeUploadedPdf = (filePath: string): Promise<void> =>
   unlink(filePath);
+
+export const removeUploadedPdfByName = async (
+  fileName: string
+): Promise<void> => {
+  const safeName = basename(fileName);
+  if (!safeName || safeName === "." || safeName === "..") {
+    return;
+  }
+
+  await unlink(resolve(uploadDirectory, safeName));
+};

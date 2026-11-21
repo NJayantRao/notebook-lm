@@ -13,6 +13,7 @@ export type SourceListItem = Pick<
 > & {
   processingError: string | null;
 };
+export type SourceCleanupRecord = Pick<Source, "id" | "metadata">;
 
 type CreateSourceData = {
   sourceType: Source["sourceType"];
@@ -167,15 +168,23 @@ const createYouTubeSource = (
 ): Promise<Source> =>
   createSource(workspaceId, { ...data, sourceType: "yt_url" });
 
+const findSourceCleanupDataByWorkspaceId = async (
+  workspaceId: string
+): Promise<SourceCleanupRecord[]> =>
+  db
+    .select({ id: source.id, metadata: source.metadata })
+    .from(source)
+    .where(eq(source.workspaceId, workspaceId));
+
 const deleteAllSourcesByWorkspaceId = async (
   workspaceId: string
-): Promise<number> => {
+): Promise<Source[]> => {
   const deleted = await db
     .delete(source)
     .where(eq(source.workspaceId, workspaceId))
     .returning();
 
-  return deleted.length;
+  return deleted;
 };
 
 const deleteSourceByWorkspaceIdAndId = async (
@@ -194,6 +203,7 @@ export default {
   findSourcesByWorkspaceId,
   countSourcesByWorkspaceId,
   findSourceById,
+  findSourceCleanupDataByWorkspaceId,
   updateSourceRecord,
   updateSourceStatus,
   createSource,

@@ -2,6 +2,7 @@ export type SourceMetadata = Record<string, unknown> & {
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
+  storedFileName?: string;
   publicId?: string;
   resourceType?: "raw" | "image";
   importedFrom?: string;
