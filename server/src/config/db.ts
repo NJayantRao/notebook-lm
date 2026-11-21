@@ -17,4 +17,14 @@ async function connectToDb(): Promise<void> {
   }
 }
 
-export { connectToDb };
+async function checkDatabaseConnection(): Promise<void> {
+  const pool = new Pool({ connectionString: ENV.DATABASE_URL });
+
+  try {
+    await pool.query("SELECT 1");
+  } finally {
+    await pool.end();
+  }
+}
+
+export { connectToDb, checkDatabaseConnection };
