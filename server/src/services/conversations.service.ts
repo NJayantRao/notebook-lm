@@ -8,7 +8,11 @@ import conversationsRepository, {
   type ConversationRecord,
 } from "../repository/conversations.repository.js";
 import workspaceRepository from "../repository/workspaces.repository.js";
-import { createEmbeddings, generateChatAnswer } from "../lib/openai.js";
+import {
+  CHAT_MODEL,
+  createEmbeddings,
+  generateChatAnswer,
+} from "../lib/openai.js";
 import { querySourceChunkVectors } from "../lib/pinecone.js";
 import { searchWeb } from "../lib/tavily.js";
 import { searchUserMemories } from "../lib/mem0.js";
@@ -20,6 +24,16 @@ const WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND";
 const CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND";
 const TOP_K = 6;
 const MEMORY_REFRESH_INTERVAL = 16;
+
+// Only these workspace model values may reach the chat API. The legacy value is
+// kept so existing workspaces keep working without a database migration.
+const ALLOWED_CHAT_MODELS: Record<string, string> = {
+  "gpt-4o-mini": CHAT_MODEL,
+  "openai-4o-mini": CHAT_MODEL,
+};
+
+const resolveChatModel = (model: string | undefined): string =>
+  (model && ALLOWED_CHAT_MODELS[model]) || CHAT_MODEL;
 
 const formatSourceContext = (sources: ConversationCitation[]): string =>
   sources
@@ -51,6 +65,12 @@ const createAnswer = async (
   history: { role: "user" | "assistant"; content: string }[],
   webSearch: boolean
 ): Promise<{ answer: string; sources: ConversationCitation[] }> => {
+  const workspace = await workspaceRepository.findWorkspaceByIdAndUserId(
+    workspaceId,
+    userId
+  );
+  const chatModel = resolveChatModel(workspace?.model);
+
   if (webSearch) {
     const [response, userMemories] = await Promise.all([
       searchWeb(question),
@@ -85,7 +105,8 @@ const createAnswer = async (
       history.slice(-10),
       sourceContext,
       "web",
-      userMemories
+      userMemories,
+      chatModel
     );
 
     return { answer, sources };
@@ -152,7 +173,8 @@ const createAnswer = async (
     history.slice(-10),
     formatSourceContext(sources),
     "workspace",
-    await searchUserMemories(userId, question)
+    await searchUserMemories(userId, question),
+    chatModel
   );
 
   return { answer, sources };

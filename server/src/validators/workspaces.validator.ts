@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 const workspaceFields = {
-  title: z.string(),
-  description: z.string().nullable(),
-  icon: z.string().nullable(),
-  model: z.string(),
+  title: z.string().trim().min(1, "Title cannot be empty").max(120),
+  description: z.string().max(500).nullable(),
+  icon: z.string().max(8).nullable(),
+  model: z.enum(["gpt-4o-mini"]),
 };
 
 export const createWorkspaceSchema = z
