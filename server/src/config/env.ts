@@ -1,22 +1,39 @@
 import dotenv from "dotenv";
+import { z } from "zod";
 
 dotenv.config();
 
-const ENV = {
-  PORT: process.env.PORT || 5000,
-  DATABASE_URL:
-    process.env.DATABASE_URL || "postgresql://admin:admin@localhost:5432/admin",
-  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
-  BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET!,
-  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || "http://localhost:5000",
-  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID!,
-  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET!,
-  FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY!,
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-  PINECONE_API_KEY: process.env.PINECONE_API_KEY,
-  PINECONE_INDEX: process.env.PINECONE_INDEX,
-  TAVILY_API_KEY: process.env.TAVILY_API_KEY!,
-  MEM0_API_KEY: process.env.MEM0_API_KEY!,
-};
+const optionalApiKey = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().trim().min(1).optional()
+);
 
-export { ENV };
+const envSchema = z.object({
+  PORT: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().default(5000)
+  ),
+  DATABASE_URL: z.url(),
+  CLIENT_URL: z.url().default("http://localhost:3000"),
+  BETTER_AUTH_SECRET: z.string().trim().min(32),
+  BETTER_AUTH_URL: z.url().default("http://localhost:5000"),
+  GOOGLE_CLIENT_ID: z.string().trim().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().trim().min(1),
+  FIRECRAWL_API_KEY: z.string().trim().min(1),
+  TAVILY_API_KEY: z.string().trim().min(1),
+  MEM0_API_KEY: z.string().trim().min(1),
+  OPENAI_API_KEY: optionalApiKey,
+  PINECONE_API_KEY: optionalApiKey,
+  PINECONE_INDEX: optionalApiKey,
+});
+
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  const issues = parsed.error.issues
+    .map((issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`)
+    .join("\n");
+  throw new Error(`Invalid environment configuration:\n${issues}`);
+}
+
+export const ENV = parsed.data;
