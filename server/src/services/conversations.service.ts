@@ -6,7 +6,6 @@ import {
   type UIMessage,
 } from "ai";
 
-import { ENV } from "../config/env.js";
 import {
   BadGatewayError,
   NotFoundError,
@@ -116,10 +115,6 @@ const loadUserMemories = async (
   userId: string,
   question: string
 ): Promise<string[]> => {
-  if (!ENV.MEMORY_ENABLED) {
-    return [];
-  }
-
   try {
     return await searchUserMemories(userId, question);
   } catch (error) {
@@ -217,7 +212,7 @@ const prepareAnswer = async (
   );
   type ScoredMatch = { id: string; score: number };
   const scoredMatches: ScoredMatch[] = matches.flatMap((match) =>
-    match.score !== undefined && match.score >= ENV.RETRIEVAL_MIN_SCORE
+    match.score !== undefined
       ? [{ id: match.id, score: match.score }]
       : []
   );
@@ -312,7 +307,7 @@ const enqueueMemoryRefresh = async (
   conversationId: string,
   userMessageCount: number
 ): Promise<void> => {
-  if (!ENV.MEMORY_ENABLED || userMessageCount % MEMORY_REFRESH_INTERVAL !== 0) {
+  if (userMessageCount % MEMORY_REFRESH_INTERVAL !== 0) {
     return;
   }
 

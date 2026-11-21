@@ -1,9 +1,7 @@
 import type { Express } from "express";
 import { basename, extname } from "node:path";
-import { ENV } from "../config/env.js";
 import {
   BadRequestError,
-  ConflictError,
   NotFoundError,
   ServiceUnavailableError,
 } from "../utils/api-error.js";
@@ -35,19 +33,6 @@ const requireOwnedWorkspace = async (userId: string, workspaceId: string) => {
   }
 
   return workspace;
-};
-
-const assertSourceCapacity = async (workspaceId: string): Promise<void> => {
-  const { total } = await repository.countSourcesByWorkspaceId(workspaceId, {
-    page: 1,
-    limit: 1,
-  });
-  if (total >= ENV.MAX_SOURCES_PER_WORKSPACE) {
-    throw new ConflictError(
-      `This workspace can contain at most ${ENV.MAX_SOURCES_PER_WORKSPACE} sources.`,
-      "MAX_SOURCES_REACHED"
-    );
-  }
 };
 
 const listAllSources = async (
@@ -138,8 +123,6 @@ const saveWebsiteImport = async (
   workspaceId: string,
   input: ImportWebsiteSourceInput
 ) => {
-  await assertSourceCapacity(workspaceId);
-
   const source = await repository.createWebsiteSource(workspaceId, {
     title: input.title ?? new URL(input.url).hostname,
     content: null,
@@ -166,8 +149,6 @@ const saveYouTubeImport = async (
     );
   }
 
-  await assertSourceCapacity(workspaceId);
-
   const source = await repository.createYouTubeSource(workspaceId, {
     title: input.title ?? `YouTube video ${videoId}`,
     content: null,
@@ -193,8 +174,6 @@ const createSources = async (
   if (input.sourceType === "yt_url") {
     return saveYouTubeImport(workspaceId, input);
   }
-
-  await assertSourceCapacity(workspaceId);
 
   const source = await repository.createSource(workspaceId, input);
   return enqueueSourceIndexing(source);
@@ -230,8 +209,6 @@ const uploadPdfSource = async (
 
     const originalName = basename(file.originalname);
     const title = basename(originalName, extname(originalName)).trim();
-
-    await assertSourceCapacity(workspaceId);
 
     const source = await repository.createSource(workspaceId, {
       sourceType: "pdf",
