@@ -59,7 +59,7 @@ a required value is missing or malformed.
 | --- | --- | --- |
 | `PORT` | No | Defaults to `5000`. |
 | `DATABASE_URL` | Yes | PostgreSQL connection string. |
-| `CLIENT_URL` | No | Trusted browser origin; defaults to `http://localhost:3000`. |
+| `CLIENT_URL` | No | Deployed frontend origin. CORS and Better Auth also trust `http://localhost:3000`; defaults to that origin. |
 | `BETTER_AUTH_URL` | No | Auth base URL; defaults to `http://localhost:5000`. |
 | `BETTER_AUTH_SECRET` | Yes | At least 32 characters. |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID. |
