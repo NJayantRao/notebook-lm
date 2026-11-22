@@ -1,9 +1,10 @@
 import app from "./app.js";
 import { connectToDb } from "./config/db.js";
 import { connectToInngest } from "./config/inngest.js";
-import { ENV } from "./config/env.js";
+import dotenv from "dotenv";
+dotenv.config();
 
-const PORT = ENV.PORT || 5000;
+const PORT = process.env.PORT || 5000;
 
 try {
   await connectToDb();
