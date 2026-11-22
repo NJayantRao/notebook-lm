@@ -3,7 +3,7 @@ import { connectToDb } from "./config/db.js";
 import { connectToInngest } from "./config/inngest.js";
 import { ENV } from "./config/env.js";
 
-const PORT = ENV.PORT;
+const PORT = ENV.PORT || 5000;
 
 try {
   await connectToDb();
