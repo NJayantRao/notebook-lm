@@ -538,7 +538,6 @@ export function WorkspaceConversation({
         {sourcesSidebarOpen && (
           <WorkspaceSourcesSidebar
             workspaceId={workspaceId}
-            workspaceTitle={workspaceQuery.data?.title ?? "Workspace"}
             enabled={!!session}
             conversations={conversations}
             conversationsLoading={conversationsQuery.isLoading}
@@ -547,6 +546,7 @@ export function WorkspaceConversation({
             }
             selectedConversationId={selectedConversationId}
             onSelectConversation={selectConversation}
+            onStartNewConversation={startNewConversation}
           />
         )}
 
@@ -577,14 +577,6 @@ export function WorkspaceConversation({
               >
                 Memories
               </Button>
-              <Button
-                onClick={startNewConversation}
-                className="h-9 rounded-lg bg-foreground px-2.5 text-background hover:bg-foreground/90 sm:px-3"
-              >
-                <Plus className="mr-1 h-4 w-4" />
-                <span className="hidden sm:inline">New conversation</span>
-                <span className="sm:hidden">New</span>
-              </Button>
             </div>
           </header>
 
@@ -611,7 +603,7 @@ export function WorkspaceConversation({
             )}
           </section>
         </main>
-        <StudyStudioPanel />
+     
       </div>
       <AddMemoryDialog open={addMemoryOpen} onOpenChange={setAddMemoryOpen} />
       <MemoriesDialog open={memoriesOpen} onOpenChange={setMemoriesOpen} />

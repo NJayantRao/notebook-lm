@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { getErrorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -31,8 +32,10 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export function GoogleSignInButton({
   onError,
+  className,
 }: {
   onError?: (message: string) => void;
+  className?: string;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -58,7 +61,10 @@ export function GoogleSignInButton({
     <Button
       type="button"
       variant="outline"
-      className="h-11 w-full justify-center gap-3 rounded-xl border-white/10 bg-white/[0.03] text-foreground hover:bg-white/[0.06]"
+      className={cn(
+        "h-11 w-full justify-center gap-3 rounded-xl border-white/10 bg-white/[0.03] text-foreground hover:bg-white/[0.06]",
+        className
+      )}
       onClick={handleGoogle}
       disabled={loading}
     >

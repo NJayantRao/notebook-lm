@@ -11,11 +11,25 @@ import {
   LoaderCircle,
   Plus,
   Search,
+  Trash2,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { WorkspaceListItem } from "@/lib/types";
 import { getErrorMessage } from "@/lib/api";
-import { createWorkspace } from "@/services/workspace.service";
+import {
+  createWorkspace,
+  deleteWorkspace,
+} from "@/services/workspace.service";
 
 const CARD_CLASS =
   "relative flex min-h-52 flex-col rounded-2xl border p-4";
@@ -107,43 +121,110 @@ function NewWorkspaceCard() {
 
 function WorkspaceCardItem({ workspace }: { workspace: WorkspaceListItem }) {
   const count = workspace.sourceCount ?? 0;
+  const queryClient = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteWorkspace(workspace.id),
+    onSuccess: async () => {
+      setConfirmDelete(false);
+      setActionError(null);
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
+    onError: (cause) => setActionError(getErrorMessage(cause)),
+  });
 
   return (
-    <Link
-      href={`/dashboard/workspaces/${workspace.id}`}
-      aria-label={`Open ${workspace.title}`}
-      className={`${CARD_CLASS} group border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
-    >
-      <div className="flex items-start gap-3">
-        <div className="relative shrink-0">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground">
-            {workspace.icon ? (
-              <span className="text-xl leading-none">{workspace.icon}</span>
-            ) : (
-              <BookOpen className="h-6 w-6" />
+    <>
+      <div
+        className={`${CARD_CLASS} group border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/25 focus-within:ring-2 focus-within:ring-ring`}
+      >
+        <Link
+          href={`/dashboard/workspaces/${workspace.id}`}
+          aria-label={`Open ${workspace.title}`}
+          className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none"
+        />
+
+        <button
+          type="button"
+          aria-label={`Delete ${workspace.title}`}
+          title="Delete workspace"
+          disabled={deleteMutation.isPending}
+          onClick={() => {
+            setActionError(null);
+            setConfirmDelete(true);
+          }}
+          className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+
+        <div className="pointer-events-none relative z-10 flex h-full flex-col">
+          <div className="flex items-start gap-3 pr-10">
+            <div className="relative shrink-0">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground">
+                {workspace.icon ? (
+                  <span className="text-xl leading-none">{workspace.icon}</span>
+                ) : (
+                  <BookOpen className="h-6 w-6" />
+                )}
+              </span>
+              <span className="absolute -bottom-1 -right-2 flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-background shadow-md transition-transform duration-300 group-hover:translate-x-0.5">
+                <ArrowRight className="h-3.5 w-3.5" />
+              </span>
+            </div>
+
+            <div className="min-w-0 flex-1 pt-1">
+              <p className={`${LABEL_CLASS} text-[#d9480f]`}>
+                <span className="h-2 w-2 rounded-full bg-[#d9480f]" />
+                {count} {count === 1 ? "Document" : "Documents"}
+              </p>
+              <h3 className="mt-1.5 line-clamp-3 break-words text-lg font-medium leading-snug text-foreground">
+                {workspace.title}
+              </h3>
+            </div>
+          </div>
+
+          <div className="mt-auto flex items-center gap-2 border-t border-border pt-3 text-sm font-medium text-foreground/75">
+            <Calendar className="h-3.5 w-3.5" />
+            <span>{formatDate(workspace.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+
+      <AlertDialog
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          if (!deleteMutation.isPending) setConfirmDelete(open);
+        }}
+      >
+        <AlertDialogContent className="border-border bg-popover text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this workspace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &quot;{workspace.title}&quot; and all of its sources will be
+              removed. This cannot be undone.
+            </AlertDialogDescription>
+            {actionError && (
+              <p role="alert" className="text-sm text-red-400">
+                {actionError}
+              </p>
             )}
-          </span>
-          <span className="absolute -bottom-1 -right-2 flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-background shadow-md transition-transform duration-300 group-hover:translate-x-0.5">
-            <ArrowRight className="h-3.5 w-3.5" />
-          </span>
-        </div>
-
-        <div className="min-w-0 flex-1 pt-1">
-          <p className={`${LABEL_CLASS} text-[#d9480f]`}>
-            <span className="h-2 w-2 rounded-full bg-[#d9480f]" />
-            {count} {count === 1 ? "Document" : "Documents"}
-          </p>
-          <h3 className="mt-1.5 line-clamp-3 break-words text-lg font-medium leading-snug text-foreground">
-            {workspace.title}
-          </h3>
-        </div>
-      </div>
-
-      <div className="mt-auto flex items-center gap-2 border-t border-border pt-3 text-sm font-medium text-foreground/75">
-        <Calendar className="h-3.5 w-3.5" />
-        <span>{formatDate(workspace.createdAt)}</span>
-      </div>
-    </Link>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

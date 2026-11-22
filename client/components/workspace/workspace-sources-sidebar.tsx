@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowLeft,
+  ChevronDown,
   FileText,
   FileType,
   Globe,
@@ -208,24 +209,27 @@ function SourceRow({ source }: { source: SourceListItem }) {
 
 export function WorkspaceSourcesSidebar({
   workspaceId,
-  workspaceTitle,
   enabled,
   conversations,
   conversationsLoading,
   conversationsError,
   selectedConversationId,
   onSelectConversation,
+  onStartNewConversation,
 }: {
   workspaceId: string;
-  workspaceTitle: string;
   enabled: boolean;
   conversations: ConversationListItem[];
   conversationsLoading: boolean;
   conversationsError: unknown;
   selectedConversationId: string | null;
   onSelectConversation: (conversationId: string) => void;
+  onStartNewConversation: () => void;
 }) {
   const [addSourceOpen, setAddSourceOpen] = useState(false);
+  const [openSection, setOpenSection] = useState<
+    "conversations" | "sources" | "artifacts" | null
+  >("conversations");
   const sourcesQuery = useQuery({
     queryKey: ["sources", workspaceId],
     queryFn: () => listAllWorkspaceSources(workspaceId),
@@ -239,13 +243,10 @@ export function WorkspaceSourcesSidebar({
         : false,
   });
   const sources = sourcesQuery.data ?? [];
-  const readyCount = sources.filter(
-    (source) => source.status === "ready"
-  ).length;
 
   return (
     <aside className="flex max-h-[42dvh] min-h-0 w-full flex-col border-b border-border bg-card/30 md:max-h-none md:w-72 md:shrink-0 md:border-b-0 md:border-r lg:w-80">
-      <div className="shrink-0 space-y-3 border-b border-border p-4">
+      <div className="shrink-0 border-b border-border p-4">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
@@ -253,104 +254,163 @@ export function WorkspaceSourcesSidebar({
           <ArrowLeft className="h-3 w-3" />
           Workspaces
         </Link>
-        <div className="flex items-start gap-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-foreground/90">
-            <FileText className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 pt-0.5">
-            <h1 className="truncate text-base font-semibold">
-              {workspaceTitle}
-            </h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {readyCount} indexed {readyCount === 1 ? "source" : "sources"}
-            </p>
-          </div>
-        </div>
         <Button
           type="button"
-          onClick={() => setAddSourceOpen(true)}
-          className="h-10 w-full rounded-lg bg-foreground font-semibold text-background hover:bg-foreground/90"
+          onClick={onStartNewConversation}
+          className="mt-3 h-10 w-full justify-start rounded-lg bg-foreground px-3 font-semibold text-background hover:bg-foreground/90"
         >
           <Plus className="mr-1.5 h-4 w-4" />
-          Add source
+          New conversation
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <section>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Knowledge sources
-            </h2>
-            <span className="text-xs text-muted-foreground">
-              {sources.length}
-            </span>
+      <div className="grid min-h-0 flex-1 grid-rows-3">
+        <section className="min-h-0 overflow-hidden border-b border-border">
+          <button
+            type="button"
+            onClick={() => {
+              setOpenSection((current) =>
+                current === "conversations" ? null : "conversations"
+              );
+            }}
+            className="flex h-[49px] w-full shrink-0 items-center justify-between px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          >
+            <span>Conversation history</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${
+                openSection === "conversations" ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          <div
+            className={`h-[calc(100%-49px)] overflow-y-auto overscroll-contain px-4 pb-4 ${
+              openSection === "conversations" ? "block" : "hidden"
+            }`}
+          >
+            {conversationsLoading ? (
+              <p className="px-1 py-2 text-sm text-muted-foreground">
+                Loading conversations...
+              </p>
+            ) : conversationsError ? (
+              <p className="px-1 py-2 text-sm text-red-300">
+                {getErrorMessage(conversationsError)}
+              </p>
+            ) : conversations.length === 0 ? (
+              <p className="px-1 py-2 text-sm text-muted-foreground">
+                Your conversations will appear here.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {conversations.map((conversation) => (
+                  <li key={conversation.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectConversation(conversation.id)}
+                      aria-current={
+                        selectedConversationId === conversation.id
+                          ? "true"
+                          : undefined
+                      }
+                      className={`flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                        selectedConversationId === conversation.id
+                          ? "bg-white/[0.07] text-foreground"
+                          : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                      }`}
+                    >
+                      <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate text-sm">
+                        {conversation.title || "New conversation"}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          {sourcesQuery.isLoading ? (
-            <p className="px-1 py-3 text-sm text-muted-foreground">
-              Loading sources...
-            </p>
-          ) : sourcesQuery.isError ? (
-            <div className="flex items-start gap-2 px-1 py-3 text-sm text-red-300">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{getErrorMessage(sourcesQuery.error)}</span>
-            </div>
-          ) : sources.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-              No sources yet. Add a document or link to get started.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {sources.map((source) => (
-                <SourceRow key={source.id} source={source} />
-              ))}
-            </ul>
-          )}
         </section>
 
-        <section className="mt-5 border-t border-border pt-4">
-          <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Conversation history
-          </h2>
-          {conversationsLoading ? (
-            <p className="px-1 py-2 text-sm text-muted-foreground">
-              Loading conversations...
+        <section className="min-h-0 overflow-hidden border-b border-border">
+          <button
+            type="button"
+            onClick={() => {
+              setOpenSection((current) =>
+                current === "sources" ? null : "sources"
+              );
+            }}
+            className="flex h-[49px] w-full shrink-0 items-center justify-between px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          >
+            <span>Knowledge sources</span>
+            <span className="flex items-center gap-1.5">
+              <span>{sources.length}</span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${
+                  openSection === "sources" ? "rotate-180" : ""
+                }`}
+              />
+            </span>
+          </button>
+          <div
+            className={`h-[calc(100%-49px)] overflow-y-auto overscroll-contain px-4 pb-4 ${
+              openSection === "sources" ? "block" : "hidden"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setAddSourceOpen(true)}
+              className="mb-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/20 hover:bg-muted/50 hover:text-foreground"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add source
+            </button>
+            {sourcesQuery.isLoading ? (
+              <p className="px-1 py-2 text-sm text-muted-foreground">
+                Loading sources...
+              </p>
+            ) : sourcesQuery.isError ? (
+              <div className="flex items-start gap-2 px-1 py-2 text-sm text-red-300">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{getErrorMessage(sourcesQuery.error)}</span>
+              </div>
+            ) : sources.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">
+                No knowledge sources yet.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {sources.map((source) => (
+                  <SourceRow key={source.id} source={source} />
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        <section className="min-h-0 overflow-hidden">
+          <button
+            type="button"
+            onClick={(event) => {
+              setOpenSection((current) =>
+                current === "artifacts" ? null : "artifacts"
+              );
+            }}
+            className="flex h-[49px] w-full shrink-0 items-center justify-between px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          >
+            <span>Artifacts</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${
+                openSection === "artifacts" ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          <div
+            className={`h-[calc(100%-49px)] overflow-y-auto overscroll-contain px-4 pb-4 ${
+              openSection === "artifacts" ? "block" : "hidden"
+            }`}
+          >
+            <p className="rounded-lg border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">
+              Artifacts are coming soon.
             </p>
-          ) : conversationsError ? (
-            <p className="px-1 py-2 text-sm text-red-300">
-              {getErrorMessage(conversationsError)}
-            </p>
-          ) : conversations.length === 0 ? (
-            <p className="px-1 py-2 text-sm text-muted-foreground">
-              Your conversations will appear here.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {conversations.map((conversation) => (
-                <li key={conversation.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectConversation(conversation.id)}
-                    aria-current={
-                      selectedConversationId === conversation.id
-                        ? "true"
-                        : undefined
-                    }
-                    className={`flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
-                      selectedConversationId === conversation.id
-                        ? "bg-white/[0.07] text-foreground"
-                        : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
-                    }`}
-                  >
-                    <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate text-sm">
-                      {conversation.title || "New conversation"}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          </div>
         </section>
       </div>
 
