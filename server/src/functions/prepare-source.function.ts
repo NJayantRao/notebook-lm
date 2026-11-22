@@ -3,6 +3,7 @@ import { NonRetriableError } from "inngest";
 import { inngest } from "../lib/inngest.js";
 import { getYouTubeVideoId } from "../lib/youtube.js";
 import sourcesRepository from "../repository/sources.repository.js";
+import { S3ObjectNotFoundError } from "../lib/s3.js";
 import preparation from "../services/source-preparation.service.js";
 import type { SourceMetadata } from "../types/source.js";
 
@@ -51,6 +52,7 @@ const errorCode = (error: unknown): string =>
     : "";
 
 const isNonRetriablePdfError = (error: unknown): boolean =>
+  error instanceof S3ObjectNotFoundError ||
   [
     "PDF_EXTRACTION_FAILED",
     "PDF_TEXT_NOT_FOUND",
@@ -181,23 +183,16 @@ export const prepareSourceFunction = inngest.createFunction(
           return { sourceId, status: "skipped" };
         }
       } else if (source.sourceType === "pdf") {
-        const storedFileName = requireStringMetadata(
-          source.metadata,
-          "storedFileName"
-        );
-        if (!storedFileName) {
+        const s3Key = requireStringMetadata(source.metadata, "s3Key");
+        if (!s3Key) {
           throw new NonRetriableError(`PDF source ${sourceId} does not have a stored file.`);
-        }
-
-        const filePath = preparation.resolveStoredPdfPath(storedFileName);
-        if (!filePath) {
-          throw new NonRetriableError(`PDF source ${sourceId} has an invalid stored file.`);
         }
 
         const result: SaveResult = await step.run("extract-and-save-pdf", async () => {
           try {
-            await preparation.verifyPdf(filePath);
-            const extracted = await preparation.extractPdf(filePath);
+            const buffer = await preparation.downloadPdf(s3Key);
+            await preparation.verifyPdf(buffer);
+            const extracted = await preparation.extractPdf(buffer);
             const updated = await sourcesRepository.updateSourceRecord(sourceId, {
               content: extracted.text,
               metadata: {
@@ -210,7 +205,7 @@ export const prepareSourceFunction = inngest.createFunction(
           } catch (error) {
             if (isNonRetriablePdfError(error)) {
               throw new NonRetriableError(
-                `PDF source ${sourceId} is unreadable, scanned, or encrypted.`,
+                `PDF source ${sourceId} is missing, unreadable, scanned, or encrypted.`,
                 { cause: error }
               );
             }

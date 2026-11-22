@@ -12,6 +12,8 @@ Drizzle with PostgreSQL for persistence, and Inngest for background work.
 - Google OAuth credentials
 - API keys for Firecrawl, Tavily, and Mem0
 - OpenAI and Pinecone credentials for chat, embeddings, and source indexing
+- An S3 bucket (AWS S3 or an S3-compatible provider such as Neon Object
+  Storage) for uploaded PDFs
 
 ## Local setup
 
@@ -68,9 +70,29 @@ a required value is missing or malformed.
 | `OPENAI_API_KEY` | For chat/indexing | Embeddings and chat responses. |
 | `PINECONE_API_KEY` | For indexing | Vector storage. |
 | `PINECONE_INDEX` | For indexing | Dense-vector index name. |
+| `AWS_REGION` | Yes | Region for the S3 client. |
+| `S3_BUCKET` | Yes | Bucket that stores uploaded PDFs. |
+| `AWS_ENDPOINT_URL_S3` | For S3-compatible providers | Custom endpoint; omit for AWS S3. |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | No | Omit to use the AWS default credential chain (IAM roles). |
+| `S3_KEY_PREFIX` | No | Optional key prefix; defaults to no prefix. |
+| `S3_FORCE_PATH_STYLE` | No | Defaults to `true` when `AWS_ENDPOINT_URL_S3` is set; required by providers such as Neon Object Storage. |
+| `S3_PUBLIC_BASE_URL` | No | CDN/public base URL used to build `metadata.fileUrl`. Without it the stored URL is `s3://<bucket>/<key>`. |
 
 Configure the Google OAuth redirect URI as
 `<BETTER_AUTH_URL>/api/auth/callback/google`.
+
+### PDF object storage
+
+Uploaded PDFs are streamed through multer's memory storage and written to S3 as
+`[<S3_KEY_PREFIX>/]workspaces/<workspaceId>/pdfs/<uuid>.pdf`. The resulting key
+is stored as `metadata.s3Key` and a canonical URL as `metadata.fileUrl`; no PDF
+is written to the local filesystem. The bucket only needs `s3:PutObject`,
+`s3:GetObject`, and `s3:DeleteObject` on that prefix.
+
+Assume the bucket is private. `metadata.fileUrl` is an identifier, not a
+publicly fetchable link; when a downloadable link is needed, use the
+`getSignedPdfUrl` helper in `src/lib/s3.ts` to create a short-lived presigned
+GET URL. Never persist presigned URLs in the database.
 
 Never commit `.env`; only `.env.example` is tracked.
 
@@ -102,5 +124,6 @@ The Pinecone index must have a document schema with an integrated
   source imports/uploads `20 / hour`, and memory writes `60 / hour`. Responses
   include `RateLimit-*` headers and `Retry-After` on `429`.
 - Deleting a source, all sources, or a workspace removes its Pinecone vectors
-  and stored PDFs after the database delete. External cleanup failures are
-  logged but do not fail the delete.
+  and S3 objects after the database delete. Missing S3 objects are ignored and
+  other cleanup failures are retried by Inngest; a failure to enqueue cleanup
+  is logged but does not fail the delete request.

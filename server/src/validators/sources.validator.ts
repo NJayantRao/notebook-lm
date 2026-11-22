@@ -74,7 +74,14 @@ export const createSourceSchema = z.discriminatedUnion("sourceType", [
           }
 
           const sanitized = { ...metadata };
-          for (const key of ["processingError", "chunkCount", "indexedAt"]) {
+          for (const key of [
+            "processingError",
+            "chunkCount",
+            "indexedAt",
+            "s3Key",
+            "fileUrl",
+            "storedFileName",
+          ]) {
             delete sanitized[key];
           }
           return sanitized;

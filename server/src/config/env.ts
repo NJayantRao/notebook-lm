@@ -35,6 +35,20 @@ const envSchema = z.object({
   OPENAI_API_KEY: optionalApiKey,
   PINECONE_API_KEY: optionalApiKey,
   PINECONE_INDEX: optionalApiKey,
+  AWS_ENDPOINT_URL_S3: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.url().optional()
+  ),
+  AWS_ACCESS_KEY_ID: optionalApiKey,
+  AWS_SECRET_ACCESS_KEY: optionalApiKey,
+  AWS_REGION: z.string().trim().min(1),
+  S3_BUCKET: z.string().trim().min(1),
+  S3_KEY_PREFIX: optionalApiKey,
+  S3_FORCE_PATH_STYLE: optionalBoolean,
+  S3_PUBLIC_BASE_URL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.url().optional()
+  ),
   INNGEST_DEV: optionalBoolean,
   INNGEST_SIGNING_KEY: optionalApiKey,
   INNGEST_EVENT_KEY: optionalApiKey,

@@ -12,7 +12,8 @@ import repository, {
 import workspaceRepository from "../repository/workspaces.repository.js";
 import { getYouTubeVideoId } from "../lib/youtube.js";
 import { inngest } from "../lib/inngest.js";
-import { removeUploadedPdf } from "../lib/multer.js";
+import { verifyPdfFile } from "../lib/multer.js";
+import { deletePdf, putPdf } from "../lib/s3.js";
 import type {
   CreateSourceInput,
   ImportWebsiteSourceInput,
@@ -203,12 +204,17 @@ const uploadPdfSource = async (
   file: Express.Multer.File
 ) => {
   let sourceCreated = false;
+  let objectKey: string | undefined;
 
   try {
     await requireOwnedWorkspace(userId, workspaceId);
 
+    verifyPdfFile(file.buffer);
+
     const originalName = basename(file.originalname);
     const title = basename(originalName, extname(originalName)).trim();
+    const { key, url } = await putPdf(workspaceId, file.buffer);
+    objectKey = key;
 
     const source = await repository.createSource(workspaceId, {
       sourceType: "pdf",
@@ -216,8 +222,10 @@ const uploadPdfSource = async (
       content: null,
       status: "pending",
       metadata: {
+        fileUrl: url,
+        s3Key: key,
+        storedFileName: key,
         originalName,
-        storedFileName: file.filename,
         mimeType: "application/pdf",
         size: file.size,
         fileName: originalName,
@@ -229,9 +237,9 @@ const uploadPdfSource = async (
 
     return await enqueueSourcePreparation(source);
   } catch (error) {
-    if (!sourceCreated) {
+    if (objectKey && !sourceCreated) {
       try {
-        await removeUploadedPdf(file.path);
+        await deletePdf(objectKey);
       } catch (cleanupError) {
         console.error(
           "Failed to remove an unregistered PDF upload:",
@@ -250,17 +258,21 @@ const bulkDeleteSources = async (userId: string, workspaceId: string) => {
   const deletedSources =
     await repository.deleteAllSourcesByWorkspaceId(workspaceId);
   if (deletedSources.length > 0) {
-    await inngest.send({
-      name: "source/vectors.cleanup",
-      data: {
-        workspaceId,
-        sources: deletedSources.map((item) => ({
-          id: item.id,
-          workspaceId: item.workspaceId,
-          metadata: item.metadata,
-        })),
-      },
-    });
+    try {
+      await inngest.send({
+        name: "source/vectors.cleanup",
+        data: {
+          workspaceId,
+          sources: deletedSources.map((item) => ({
+            id: item.id,
+            workspaceId: item.workspaceId,
+            metadata: item.metadata,
+          })),
+        },
+      });
+    } catch (error) {
+      console.error("Failed to schedule source cleanup:", error);
+    }
   }
 
   return deletedSources.length;
@@ -282,19 +294,23 @@ const deleteSource = async (
     throw new NotFoundError("Source not found", SOURCE_NOT_FOUND);
   }
 
-  await inngest.send({
-    name: "source/vectors.cleanup",
-    data: {
-      workspaceId,
-      sources: [
-        {
-          id: result.id,
-          workspaceId: result.workspaceId,
-          metadata: result.metadata,
-        },
-      ],
-    },
-  });
+  try {
+    await inngest.send({
+      name: "source/vectors.cleanup",
+      data: {
+        workspaceId,
+        sources: [
+          {
+            id: result.id,
+            workspaceId: result.workspaceId,
+            metadata: result.metadata,
+          },
+        ],
+      },
+    });
+  } catch (error) {
+    console.error("Failed to schedule source cleanup:", error);
+  }
 
   return result;
 };

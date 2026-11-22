@@ -13,7 +13,7 @@ type SourceCleanupEvent = {
 
 type WorkspaceCleanupEvent = {
   workspaceId: string;
-  sources: Array<{ id: string; metadata: SourceMetadata }>;
+  sources: Array<{ id: string; sourceType?: string; metadata: SourceMetadata }>;
 };
 
 const requireSourceCleanupEvent = (data: unknown): SourceCleanupEvent => {

@@ -53,10 +53,14 @@ const deleteWorkspace = async (userId: string, workspaceId: string) => {
   }
 
   if (sources.length > 0) {
-    await inngest.send({
-      name: "workspace/namespace.cleanup",
-      data: { workspaceId, sources },
-    });
+    try {
+      await inngest.send({
+        name: "workspace/namespace.cleanup",
+        data: { workspaceId, sources },
+      });
+    } catch (error) {
+      console.error("Failed to schedule workspace cleanup:", error);
+    }
   }
 
   return result;

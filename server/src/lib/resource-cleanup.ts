@@ -1,31 +1,31 @@
 import type { SourceMetadata } from "../types/source.js";
-import { removeUploadedPdfByName } from "./multer.js";
+import { deletePdf, S3ObjectNotFoundError } from "./s3.js";
 import { deleteSourceVectors, deleteWorkspaceVectors } from "./pinecone.js";
 
 export type SourceCleanupData = {
   id: string;
   workspaceId: string;
+  sourceType?: string;
   metadata: SourceMetadata;
 };
 
-const isMissingFile = (error: unknown): boolean =>
-  typeof error === "object" &&
-  error !== null &&
-  "code" in error &&
-  error.code === "ENOENT";
-
 const cleanupSourcePdf = async (source: SourceCleanupData): Promise<void> => {
-  const storedFileName = source.metadata.storedFileName;
-  if (typeof storedFileName !== "string" || !storedFileName.trim()) {
+  if (source.sourceType !== "pdf") {
+    return;
+  }
+
+  const s3Key = source.metadata.s3Key;
+  if (typeof s3Key !== "string" || !s3Key.trim()) {
     return;
   }
 
   try {
-    await removeUploadedPdfByName(storedFileName);
+    await deletePdf(s3Key);
   } catch (error) {
-    if (!isMissingFile(error)) {
-      throw error;
+    if (error instanceof S3ObjectNotFoundError) {
+      return;
     }
+    throw error;
   }
 };
 
@@ -40,7 +40,7 @@ export const cleanupSourceResources = async (
 
 export const cleanupWorkspaceResources = async (
   workspaceId: string,
-  sources: Array<Pick<SourceCleanupData, "id" | "metadata">>
+  sources: Array<Pick<SourceCleanupData, "id" | "sourceType" | "metadata">>
 ): Promise<void> => {
   await deleteWorkspaceVectors(workspaceId);
 

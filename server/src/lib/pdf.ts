@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { extractText } from "unpdf";
 
 import { ValidationError } from "../utils/api-error.js";
@@ -51,13 +50,12 @@ const cleanPage = (page: string, repeated: Set<string>): string =>
     .join("\n");
 
 export const extractPdfText = async (
-  filePath: string
+  data: Uint8Array | ArrayBuffer
 ): Promise<ExtractedPdfText> => {
-  const file = await readFile(filePath);
   let extracted: Awaited<ReturnType<typeof extractText>>;
 
   try {
-    extracted = await extractText(file, { mergePages: false });
+    extracted = await extractText(data, { mergePages: false });
   } catch (error) {
     console.error(
       "PDF text extraction failed:",

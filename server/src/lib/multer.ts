@@ -1,9 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, open, unlink } from "node:fs/promises";
-import { basename, dirname, extname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import multer from "multer";
+import { extname } from "node:path";
 import type { RequestHandler } from "express";
+import multer from "multer";
 
 import {
   BadRequestError,
@@ -12,29 +9,9 @@ import {
 } from "../utils/api-error.js";
 
 const MAX_PDF_SIZE_BYTES = 25 * 1024 * 1024;
-const uploadDirectory = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../uploads"
-);
 
 const pdfUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, callback) => {
-      mkdir(uploadDirectory, { recursive: true }).then(
-        () => callback(null, uploadDirectory),
-        (error: unknown) =>
-          callback(
-            error instanceof Error
-              ? error
-              : new Error("Unable to create upload directory"),
-            uploadDirectory
-          )
-      );
-    },
-    filename: (_req, _file, callback) => {
-      callback(null, `${randomUUID()}.pdf`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: MAX_PDF_SIZE_BYTES,
     files: 1,
@@ -81,43 +58,12 @@ export const uploadPdfFile: RequestHandler = (req, res, next) => {
   });
 };
 
-export const verifyPdfFile = async (filePath: string): Promise<void> => {
-  const file = await open(filePath, "r");
-
-  try {
-    const header = Buffer.alloc(1024);
-    const { bytesRead } = await file.read(header, 0, header.length, 0);
-
-    if (header.subarray(0, bytesRead).indexOf("%PDF-") === -1) {
-      throw new UnsupportedMediaTypeError(
-        "The uploaded file is not a valid PDF.",
-        "INVALID_PDF_SIGNATURE"
-      );
-    }
-  } finally {
-    await file.close();
+export const verifyPdfFile = (buffer: Uint8Array): void => {
+  const header = Buffer.from(buffer.subarray(0, 1024)).toString("latin1");
+  if (!header.includes("%PDF-")) {
+    throw new UnsupportedMediaTypeError(
+      "The uploaded file is not a valid PDF.",
+      "INVALID_PDF_SIGNATURE"
+    );
   }
-};
-
-export const removeUploadedPdf = (filePath: string): Promise<void> =>
-  unlink(filePath);
-
-export const getUploadedPdfPathByName = (fileName: string): string | null => {
-  const safeName = basename(fileName);
-  if (!safeName || safeName === "." || safeName === "..") {
-    return null;
-  }
-
-  return resolve(uploadDirectory, safeName);
-};
-
-export const removeUploadedPdfByName = async (
-  fileName: string
-): Promise<void> => {
-  const filePath = getUploadedPdfPathByName(fileName);
-  if (!filePath) {
-    return;
-  }
-
-  await unlink(filePath);
 };

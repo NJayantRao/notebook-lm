@@ -18,6 +18,7 @@ import {
 } from "./functions/cleanup.function.js";
 import memoryRoutes from "./routes/memories.route.js";
 import { checkDatabaseConnection } from "./config/db.js";
+import { checkInngestReadiness } from "./config/inngest.js";
 import { NotFoundError } from "./utils/api-error.js";
 import { requireAuth } from "./middlewares/require-auth.js";
 
@@ -53,7 +54,7 @@ app.use("/api/workspace/:workspaceId", sourceRoutes);
 app.use("/api/memories", memoryRoutes);
 
 app.get("/health", async (_req, res) => {
-  await checkDatabaseConnection();
+  await Promise.all([checkDatabaseConnection(), checkInngestReadiness()]);
   res.status(200).json({ status: "ok" });
 });
 

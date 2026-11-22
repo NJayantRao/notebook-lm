@@ -13,7 +13,7 @@ export type SourceListItem = Pick<
 > & {
   processingError: string | null;
 };
-export type SourceCleanupRecord = Pick<Source, "id" | "metadata">;
+export type SourceCleanupRecord = Pick<Source, "id" | "metadata" | "sourceType">;
 
 type CreateSourceData = {
   sourceType: Source["sourceType"];
@@ -194,7 +194,11 @@ const findSourceCleanupDataByWorkspaceId = async (
   workspaceId: string
 ): Promise<SourceCleanupRecord[]> =>
   db
-    .select({ id: source.id, metadata: source.metadata })
+    .select({
+      id: source.id,
+      metadata: source.metadata,
+      sourceType: source.sourceType,
+    })
     .from(source)
     .where(eq(source.workspaceId, workspaceId));
 

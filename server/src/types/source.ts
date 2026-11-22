@@ -3,6 +3,7 @@ export type SourceMetadata = Record<string, unknown> & {
   fileName?: string;
   fileSize?: number;
   storedFileName?: string;
+  s3Key?: string;
   publicId?: string;
   resourceType?: "raw" | "image";
   importedFrom?: string;
