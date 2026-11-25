@@ -1,5 +1,5 @@
 import type { SourceMetadata } from "../types/source.js";
-import { deletePdf, S3ObjectNotFoundError } from "./s3.js";
+import { deleteArtifactPrefix, deletePdf, S3ObjectNotFoundError } from "./s3.js";
 import { deleteSourceVectors, deleteWorkspaceVectors } from "./pinecone.js";
 
 export type SourceCleanupData = {
@@ -48,3 +48,8 @@ export const cleanupWorkspaceResources = async (
     await cleanupSourcePdf({ ...source, workspaceId });
   }
 };
+
+/** Removes every generated-audio object under a deleted workspace. */
+export const cleanupArtifactResources = async (
+  workspaceId: string
+): Promise<number> => deleteArtifactPrefix(workspaceId);

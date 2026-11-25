@@ -1,3 +1,4 @@
+import logger from "../config/logger.js";
 import conversationsRepository from "../repository/conversations.repository.js";
 import { addUserMemory } from "../lib/mem0.js";
 import { inngest } from "../lib/inngest.js";
@@ -40,25 +41,33 @@ export const refreshUserMemoryFunction = inngest.createFunction(
     triggers: [{ event: "conversation/memory.refresh.requested" }],
     onFailure: async ({ event, error }) => {
       const eventData = requireMemoryRefreshEvent(event.data.event.data);
-      console.error(
-        `Memory refresh failed for conversation ${eventData.conversationId} ` +
-          `after user message ${eventData.throughUserMessageCount}:`,
-        error
-      );
+      logger.error("memory.refresh.failed", {
+        userId: eventData.userId,
+        conversationId: eventData.conversationId,
+        throughUserMessageCount: eventData.throughUserMessageCount,
+        error,
+      });
     },
   },
-  async ({ event, step }) => {
+  async ({ event, step, attempt, runId }) => {
     const { userId, conversationId, throughUserMessageCount } =
       requireMemoryRefreshEvent(event.data);
-    const messages = await step.run("load-conversation-messages", () =>
-      conversationsRepository.findConversationMemoryMessages(
+    const jobMeta = { userId, conversationId, throughUserMessageCount, attempt, runId };
+
+    const messages = await step.run("load-conversation-messages", async () => {
+      logger.info("memory.refresh.started", jobMeta);
+      return conversationsRepository.findConversationMemoryMessages(
         userId,
         conversationId,
         throughUserMessageCount
-      )
-    );
+      );
+    });
 
     if (!messages) {
+      logger.debug("memory.refresh.skipped", {
+        ...jobMeta,
+        reason: "conversation-not-found",
+      });
       return { status: "skipped", reason: "conversation-not-found" };
     }
 
@@ -71,13 +80,19 @@ export const refreshUserMemoryFunction = inngest.createFunction(
       );
     }
 
-    const memories = await step.run("upsert-user-memory", () =>
-      addUserMemory(userId, userMessages, {
+    const memories = await step.run("upsert-user-memory", async () => {
+      logger.info("memory.refresh.step", { ...jobMeta, step: "upsert-memory" });
+      const result = await addUserMemory(userId, userMessages, {
         source: "conversation",
         conversationId,
         throughUserMessageCount,
-      })
-    );
+      });
+      logger.info("memory.refresh.completed", {
+        ...jobMeta,
+        memoryOperations: result.length,
+      });
+      return result;
+    });
 
     return {
       status: "updated",

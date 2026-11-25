@@ -3,10 +3,13 @@ import { streamText } from "ai";
 import OpenAI from "openai";
 
 import { ENV } from "../config/env.js";
+import logger, { markLogged, timed } from "../config/logger.js";
 import {
   BadGatewayError,
   ServiceUnavailableError,
 } from "../utils/api-error.js";
+
+const PROVIDER = "openai";
 
 export const EMBEDDING_MODEL = "text-embedding-3-small";
 export const CHAT_MODEL = "gpt-4o-mini";
@@ -101,7 +104,12 @@ export const rewriteSearchQuery = async (
     const rewritten = response.output_text.trim().split(/\r?\n/)[0]?.trim();
     return rewritten || question;
   } catch (error) {
-    console.error("Question rewrite failed; using the original question:", error);
+    // Recoverable: the original question is still a usable retrieval query.
+    logger.warn("llm.query_rewrite.failed", {
+      provider: PROVIDER,
+      model: CHAT_MODEL,
+      error,
+    });
     return question;
   }
 };
@@ -114,18 +122,25 @@ export const generateChatAnswerFromPrompt = async (
   let response;
 
   try {
-    response = await openai.responses.create({
-      model,
-      instructions: prompt.instructions,
-      input: prompt.messages,
-      max_output_tokens: 1200,
-    });
+    response = await timed(
+      "llm.chat.completed",
+      { provider: PROVIDER, model, count: prompt.messages.length },
+      () =>
+        openai.responses.create({
+          model,
+          instructions: prompt.instructions,
+          input: prompt.messages,
+          max_output_tokens: 1200,
+        })
+    );
   } catch (error) {
-    console.error("OpenAI conversation response failed:", error);
-    throw new BadGatewayError(
+    logger.error("llm.chat.failed", { provider: PROVIDER, model, error });
+    const apiError = new BadGatewayError(
       "The assistant could not generate a response. Please try again.",
       "OPENAI_CHAT_FAILED"
     );
+    markLogged(apiError);
+    throw apiError;
   }
 
   const answer = response.output_text.trim();

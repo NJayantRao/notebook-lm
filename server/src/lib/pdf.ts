@@ -1,6 +1,9 @@
 import { extractText } from "unpdf";
 
+import logger, { markLogged, timed } from "../config/logger.js";
 import { ValidationError } from "../utils/api-error.js";
+
+const PROVIDER = "unpdf";
 
 export type ExtractedPdfText = {
   text: string;
@@ -55,16 +58,20 @@ export const extractPdfText = async (
   let extracted: Awaited<ReturnType<typeof extractText>>;
 
   try {
-    extracted = await extractText(data, { mergePages: false });
-  } catch (error) {
-    console.error(
-      "PDF text extraction failed:",
-      error instanceof Error ? error.message : "Unknown parser error"
+    extracted = await timed(
+      "pdf.extract",
+      { provider: PROVIDER, byteLength: data.byteLength },
+      () => extractText(data, { mergePages: false })
     );
-    throw new ValidationError(
+  } catch (error) {
+    // A damaged or encrypted PDF is a client-side validation failure.
+    logger.warn("pdf.extract.failed", { provider: PROVIDER, error });
+    const apiError = new ValidationError(
       "Unable to extract text from this PDF. It may be encrypted or damaged.",
       "PDF_EXTRACTION_FAILED"
     );
+    markLogged(apiError);
+    throw apiError;
   }
 
   const pages = Array.isArray(extracted.text) ? extracted.text : [extracted.text];

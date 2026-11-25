@@ -19,6 +19,7 @@ const optionalBoolean = z.preprocess(
 );
 
 const envSchema = z.object({
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
   PORT: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().positive().default(5000)
@@ -33,6 +34,30 @@ const envSchema = z.object({
   TAVILY_API_KEY: optionalApiKey,
   MEM0_API_KEY: optionalApiKey,
   OPENAI_API_KEY: optionalApiKey,
+  ANTHROPIC_API_KEY: optionalApiKey,
+  GOOGLE_GENERATIVE_AI_API_KEY: optionalApiKey,
+  CHAT_MODEL: optionalApiKey,
+  ARTIFACT_MODEL_FAST: optionalApiKey,
+  ARTIFACT_MODEL_STRONG: optionalApiKey,
+  TTS_MODEL: optionalApiKey,
+  TTS_VOICE_HOST_A: optionalApiKey,
+  TTS_VOICE_HOST_B: optionalApiKey,
+  MAX_ARTIFACT_CONTEXT_TOKENS: z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    z.coerce.number().int().min(1000).default(90000)
+  ),
+  ARTIFACTS_PER_DAY: z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    z.coerce.number().int().positive().default(20)
+  ),
+  PODCASTS_PER_DAY: z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    z.coerce.number().int().positive().default(3)
+  ),
+  AUDIO_URL_TTL_SECONDS: z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    z.coerce.number().int().min(60).default(3600)
+  ),
   PINECONE_API_KEY: optionalApiKey,
   PINECONE_INDEX: optionalApiKey,
   AWS_ENDPOINT_URL_S3: z.preprocess(

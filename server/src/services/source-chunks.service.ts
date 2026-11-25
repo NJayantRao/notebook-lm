@@ -1,6 +1,7 @@
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { encodingForModel } from "js-tiktoken";
 
+import logger from "../config/logger.js";
 import type { SourceRecord } from "../repository/sources.repository.js";
 import sourceChunksRepository, {
   type NewSourceChunk,
@@ -35,7 +36,20 @@ const nearestHeading = (content: string, chunkText: string): string | undefined 
   return headings.at(-1)?.trim();
 };
 
-const createSourceChunks = async (source: SourceRecord): Promise<number> => {
+type ChunkStats = { count: number; totalTokens: number };
+
+const saveChunks = async (
+  sourceId: string,
+  chunks: NewSourceChunk[]
+): Promise<ChunkStats> => {
+  const count = await sourceChunksRepository.replaceSourceChunks(sourceId, chunks);
+  return {
+    count,
+    totalTokens: chunks.reduce((total, chunk) => total + chunk.tokenCount, 0),
+  };
+};
+
+const createSourceChunks = async (source: SourceRecord): Promise<ChunkStats> => {
   const content = source.content;
   if (!content?.trim()) {
     throw new Error(`Source ${source.id} does not contain indexable text.`);
@@ -90,7 +104,13 @@ const createSourceChunks = async (source: SourceRecord): Promise<number> => {
       }
     }
 
-    return sourceChunksRepository.replaceSourceChunks(source.id, chunks);
+    logger.debug("source.chunking", {
+      sourceId: source.id,
+      strategy: "pdf-pages",
+      blockCount: pages.length,
+      chunkCount: chunks.length,
+    });
+    return saveChunks(source.id, chunks);
   }
 
   // YouTube transcripts are stored as time-grouped blocks separated by form
@@ -100,6 +120,19 @@ const createSourceChunks = async (source: SourceRecord): Promise<number> => {
     const starts = Array.isArray(source.metadata.transcriptStarts)
       ? source.metadata.transcriptStarts
       : [];
+    logger.info("source.chunking", {
+      sourceId: source.id,
+      strategy: "youtube-time",
+      blockCount: blocks.length,
+      startCount: starts.length,
+    });
+    if (starts.length !== blocks.length) {
+      logger.warn("source.chunking.timestamp_mismatch", {
+        sourceId: source.id,
+        blockCount: blocks.length,
+        startCount: starts.length,
+      });
+    }
     const chunks: NewSourceChunk[] = [];
 
     for (const [blockIndex, blockText] of blocks.entries()) {
@@ -123,7 +156,7 @@ const createSourceChunks = async (source: SourceRecord): Promise<number> => {
       }
     }
 
-    return sourceChunksRepository.replaceSourceChunks(source.id, chunks);
+    return saveChunks(source.id, chunks);
   }
 
   // Non-PDF sources and legacy PDFs stored before page-aware extraction are
@@ -139,7 +172,12 @@ const createSourceChunks = async (source: SourceRecord): Promise<number> => {
     });
   });
 
-  return sourceChunksRepository.replaceSourceChunks(source.id, chunks);
+  logger.debug("source.chunking", {
+    sourceId: source.id,
+    strategy: "generic",
+    chunkCount: chunks.length,
+  });
+  return saveChunks(source.id, chunks);
 };
 
 const findSourceChunks = (

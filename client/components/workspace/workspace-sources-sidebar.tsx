@@ -388,7 +388,7 @@ export function WorkspaceSourcesSidebar({
         <section className="min-h-0 overflow-hidden">
           <button
             type="button"
-            onClick={(event) => {
+            onClick={() => {
               setOpenSection((current) =>
                 current === "artifacts" ? null : "artifacts"
               );

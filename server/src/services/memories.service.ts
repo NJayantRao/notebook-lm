@@ -1,3 +1,4 @@
+import logger from "../config/logger.js";
 import {
   addUserMemory,
   deleteUserMemory,
@@ -12,19 +13,42 @@ import type {
 const listUserMemories = (userId: string, page: number, pageSize: number) =>
   getUserMemories(userId, page, pageSize);
 
-const createUserMemory = (userId: string, input: CreateMemoryInput) =>
-  addUserMemory(userId, [{ role: "user", content: input.content }], {
-    source: "manual",
+const createUserMemory = async (
+  userId: string,
+  input: CreateMemoryInput
+) => {
+  const result = await addUserMemory(
+    userId,
+    [{ role: "user", content: input.content }],
+    { source: "manual" }
+  );
+  logger.info("memory.created", {
+    userId,
+    contentChars: input.content.length,
+    count: Array.isArray(result) ? result.length : 0,
   });
+  return result;
+};
 
-const updateMemory = (
+const updateMemory = async (
   userId: string,
   memoryId: string,
   input: UpdateMemoryInput
-) => updateUserMemory(userId, memoryId, input.text);
+) => {
+  const result = await updateUserMemory(userId, memoryId, input.text);
+  logger.info("memory.updated", {
+    userId,
+    memoryId,
+    textChars: input.text.length,
+  });
+  return result;
+};
 
-const removeMemory = (userId: string, memoryId: string) =>
-  deleteUserMemory(userId, memoryId);
+const removeMemory = async (userId: string, memoryId: string) => {
+  const result = await deleteUserMemory(userId, memoryId);
+  logger.info("memory.deleted", { userId, memoryId });
+  return result;
+};
 
 export default {
   listUserMemories,

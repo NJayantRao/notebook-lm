@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { basename, extname } from "node:path";
+import logger, { markLogged } from "../config/logger.js";
 import {
   BadRequestError,
   NotFoundError,
@@ -66,7 +67,12 @@ const markEnqueueFailure = async (
   message: string,
   code: string
 ): Promise<never> => {
-  console.error(`Failed to enqueue work for source ${source.id}:`, error);
+  logger.error("source.enqueue.failed", {
+    sourceId: source.id,
+    workspaceId: source.workspaceId,
+    sourceType: source.sourceType,
+    error,
+  });
   await repository.updateSourceRecord(source.id, {
     status: "failed",
     metadata: {
@@ -77,7 +83,9 @@ const markEnqueueFailure = async (
           : message,
     },
   });
-  throw new ServiceUnavailableError(message, code);
+  const apiError = new ServiceUnavailableError(message, code);
+  markLogged(apiError);
+  throw apiError;
 };
 
 const enqueueSourceIndexing = async (
@@ -134,6 +142,11 @@ const saveWebsiteImport = async (
       useScrapedTitle: !input.title,
     },
   });
+  logger.info("source.created", {
+    sourceId: source.id,
+    workspaceId,
+    sourceType: source.sourceType,
+  });
 
   return enqueueSourcePreparation(source);
 };
@@ -157,6 +170,12 @@ const saveYouTubeImport = async (
     status: "pending",
     metadata: { videoId, importedFrom: input.url },
   });
+  logger.info("source.created", {
+    sourceId: source.id,
+    workspaceId,
+    sourceType: source.sourceType,
+    videoId,
+  });
 
   return enqueueSourcePreparation(source);
 };
@@ -177,6 +196,12 @@ const createSources = async (
   }
 
   const source = await repository.createSource(workspaceId, input);
+  logger.info("source.created", {
+    sourceId: source.id,
+    workspaceId,
+    sourceType: source.sourceType,
+    contentChars: source.content?.length ?? 0,
+  });
   return enqueueSourceIndexing(source);
 };
 
@@ -234,6 +259,12 @@ const uploadPdfSource = async (
       },
     });
     sourceCreated = true;
+    logger.info("source.created", {
+      sourceId: source.id,
+      workspaceId,
+      sourceType: "pdf",
+      size: file.size,
+    });
 
     return await enqueueSourcePreparation(source);
   } catch (error) {
@@ -241,10 +272,11 @@ const uploadPdfSource = async (
       try {
         await deletePdf(objectKey);
       } catch (cleanupError) {
-        console.error(
-          "Failed to remove an unregistered PDF upload:",
-          cleanupError
-        );
+        logger.warn("source.upload.orphan_cleanup.failed", {
+          workspaceId,
+          keyLength: objectKey.length,
+          error: cleanupError,
+        });
       }
     }
 
@@ -271,9 +303,18 @@ const bulkDeleteSources = async (userId: string, workspaceId: string) => {
         },
       });
     } catch (error) {
-      console.error("Failed to schedule source cleanup:", error);
+      logger.warn("source.cleanup.enqueue.failed", {
+        workspaceId,
+        count: deletedSources.length,
+        error,
+      });
     }
   }
+
+  logger.info("source.bulk_deleted", {
+    workspaceId,
+    count: deletedSources.length,
+  });
 
   return deletedSources.length;
 };
@@ -309,9 +350,14 @@ const deleteSource = async (
       },
     });
   } catch (error) {
-    console.error("Failed to schedule source cleanup:", error);
+    logger.warn("source.cleanup.enqueue.failed", {
+      workspaceId,
+      sourceId,
+      error,
+    });
   }
 
+  logger.info("source.deleted", { workspaceId, sourceId });
   return result;
 };
 
@@ -350,6 +396,13 @@ const reindexSource = async (
   if (!saved) {
     throw new NotFoundError("Source not found", SOURCE_NOT_FOUND);
   }
+
+  logger.info("source.reindex.requested", {
+    workspaceId,
+    sourceId,
+    sourceType: source.sourceType,
+    needsPreparation,
+  });
 
   return needsPreparation
     ? enqueueSourcePreparation(updatedSource)

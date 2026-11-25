@@ -1,12 +1,16 @@
 import { MemoryClient, type Memory, type Message } from "mem0ai";
 
 import { ENV } from "../config/env.js";
+import logger, { markLogged, timed } from "../config/logger.js";
 import {
   BadGatewayError,
   NotFoundError,
   ServiceUnavailableError,
 } from "../utils/api-error.js";
-import { withTimeout } from "./timeout.js";
+import { logProviderTimeout, withTimeout } from "./timeout.js";
+
+const PROVIDER = "mem0";
+const MEM0_TIMEOUT_MS = 30_000;
 
 let client: MemoryClient | undefined;
 
@@ -31,17 +35,26 @@ const getClient = (): MemoryClient => {
 };
 
 const callMem0 = async <T>(
+  event: string,
   operation: string,
   request: () => Promise<T>
 ): Promise<T> => {
   try {
-    return await withTimeout(request(), 30_000, `Mem0 ${operation}`);
+    return await timed(
+      event,
+      { provider: PROVIDER, operation, timeoutMs: MEM0_TIMEOUT_MS },
+      () => withTimeout(request(), MEM0_TIMEOUT_MS, `Mem0 ${operation}`)
+    );
   } catch (error) {
-    console.error(`Mem0 ${operation} failed:`, error);
-    throw new BadGatewayError(
+    if (!logProviderTimeout(PROVIDER, event, MEM0_TIMEOUT_MS, error)) {
+      logger.error(`${event}.failed`, { provider: PROVIDER, operation, error });
+    }
+    const apiError = new BadGatewayError(
       "The memory service could not complete the request. Please try again.",
       "MEM0_REQUEST_FAILED"
     );
+    markLogged(apiError);
+    throw apiError;
   }
 };
 
@@ -53,7 +66,7 @@ const findUserMemory = async (
   const pageSize = 100;
 
   for (let page = 1; ; page += 1) {
-    const response = await callMem0("memory lookup", () =>
+    const response = await callMem0("memory.lookup", "memory lookup", () =>
       mem0.getAll({ filters: { user_id: userId }, page, pageSize })
     );
     const memory = response.results.find((item) => item.id === memoryId);
@@ -73,7 +86,7 @@ export const addUserMemory = (
   metadata?: Record<string, unknown>
 ) => {
   const mem0 = getClient();
-  return callMem0("memory creation", () =>
+  return callMem0("memory.add", "memory creation", () =>
     mem0.add(messages, {
       userId,
       infer: true,
@@ -88,7 +101,7 @@ export const getUserMemories = (
   pageSize = 50
 ): Promise<UserMemoriesPage> => {
   const mem0 = getClient();
-  return callMem0("memory retrieval", () =>
+  return callMem0("memory.list", "memory retrieval", () =>
     mem0.getAll({
       filters: { user_id: userId },
       page,
@@ -102,7 +115,7 @@ export const searchUserMemories = async (
   query: string
 ): Promise<string[]> => {
   const mem0 = getClient();
-  const response = await callMem0("memory search", () =>
+  const response = await callMem0("memory.search", "memory search", () =>
     mem0.search(query, {
       filters: { user_id: userId },
       topK: 5,
@@ -124,13 +137,15 @@ export const updateUserMemory = async (
 ) => {
   await findUserMemory(userId, memoryId);
   const mem0 = getClient();
-  return callMem0("memory update", () => mem0.update(memoryId, { text }));
+  return callMem0("memory.update", "memory update", () =>
+    mem0.update(memoryId, { text })
+  );
 };
 
 export const deleteUserMemory = async (userId: string, memoryId: string) => {
   await findUserMemory(userId, memoryId);
   const mem0 = getClient();
-  return callMem0("memory deletion", () =>
+  return callMem0("memory.delete", "memory deletion", () =>
     mem0.delete(memoryId, { deleteLinked: true })
   );
 };

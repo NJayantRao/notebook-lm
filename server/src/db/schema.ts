@@ -8,10 +8,19 @@ import {
   jsonb,
   integer,
   uniqueIndex,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 import { defineRelations } from "drizzle-orm";
 import type { SourceMetadata } from "../types/source.js";
 import type { ConversationCitation } from "../types/conversation.js";
+import type {
+  ArtifactAudioMeta,
+  ArtifactCitation,
+  ArtifactContent,
+  ArtifactInput,
+  ArtifactSourceIndexEntry,
+  QuizAttemptAnswer,
+} from "../types/artifact.js";
 
 export const sourceTypeEnum = pgEnum("source_type", [
   "text",
@@ -29,6 +38,21 @@ export const sourceStatusEnum = pgEnum("source_status", [
 ]);
 
 export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
+
+export const artifactTypeEnum = pgEnum("artifact_type", [
+  "roadmap",
+  "mindmap",
+  "podcast",
+  "quiz",
+  "flashcards",
+]);
+
+export const artifactStatusEnum = pgEnum("artifact_status", [
+  "pending",
+  "generating",
+  "ready",
+  "failed",
+]);
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -270,6 +294,121 @@ export const message = pgTable(
   ]
 );
 
+export const artifact = pgTable(
+  "artifact",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    type: artifactTypeEnum("type").notNull(),
+    status: artifactStatusEnum("status").notNull().default("pending"),
+    title: text("title").notNull(),
+    input: jsonb("input").$type<ArtifactInput>().notNull(),
+    content: jsonb("content")
+      .$type<ArtifactContent>()
+      .notNull()
+      .default({ kind: "empty" }),
+    sourceIndex: jsonb("source_index")
+      .$type<ArtifactSourceIndexEntry[]>()
+      .notNull()
+      .default([]),
+    sourceHash: text("source_hash").notNull(),
+    paramsHash: text("params_hash").notNull(),
+    audioKey: text("audio_key"),
+    audioMeta: jsonb("audio_meta").$type<ArtifactAudioMeta | null>(),
+    durationSec: integer("duration_sec"),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("artifact_workspaceId_idx").on(table.workspaceId),
+    index("artifact_workspaceId_type_idx").on(table.workspaceId, table.type),
+    index("artifact_status_idx").on(table.status),
+    index("artifact_createdAt_idx").on(table.createdAt),
+  ]
+);
+
+export const flashcard = pgTable(
+  "flashcard",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    artifactId: text("artifact_id")
+      .notNull()
+      .references(() => artifact.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    front: text("front").notNull(),
+    back: text("back").notNull(),
+    citation: jsonb("citation").$type<ArtifactCitation | null>().default(null),
+    easeFactor: doublePrecision("ease_factor").notNull().default(2.5),
+    interval: integer("interval").notNull().default(0),
+    repetitions: integer("repetitions").notNull().default(0),
+    nextReviewAt: timestamp("next_review_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("flashcard_artifactId_idx").on(table.artifactId),
+    index("flashcard_workspaceId_idx").on(table.workspaceId),
+    index("flashcard_workspaceId_nextReviewAt_idx").on(
+      table.workspaceId,
+      table.nextReviewAt
+    ),
+  ]
+);
+
+export const quizAttempt = pgTable(
+  "quiz_attempt",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    artifactId: text("artifact_id")
+      .notNull()
+      .references(() => artifact.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    score: integer("score").notNull(),
+    totalQuestions: integer("total_questions").notNull(),
+    answers: jsonb("answers").$type<QuizAttemptAnswer[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("quiz_attempt_artifactId_userId_idx").on(table.artifactId, table.userId),
+    index("quiz_attempt_workspaceId_userId_idx").on(
+      table.workspaceId,
+      table.userId
+    ),
+    index("quiz_attempt_createdAt_idx").on(table.createdAt),
+  ]
+);
+
 export const relations = defineRelations(
   {
     user,
@@ -281,6 +420,9 @@ export const relations = defineRelations(
     chunk,
     conversation,
     message,
+    artifact,
+    flashcard,
+    quizAttempt,
   },
   (r) => ({
     user: {
@@ -297,6 +439,11 @@ export const relations = defineRelations(
       workspaces: r.many.workspace({
         from: r.user.id,
         to: r.workspace.userId,
+      }),
+
+      quizAttempts: r.many.quizAttempt({
+        from: r.user.id,
+        to: r.quizAttempt.userId,
       }),
     },
 
@@ -326,6 +473,18 @@ export const relations = defineRelations(
       conversations: r.many.conversation({
         from: r.workspace.id,
         to: r.conversation.workspaceId,
+      }),
+      artifacts: r.many.artifact({
+        from: r.workspace.id,
+        to: r.artifact.workspaceId,
+      }),
+      flashcards: r.many.flashcard({
+        from: r.workspace.id,
+        to: r.flashcard.workspaceId,
+      }),
+      quizAttempts: r.many.quizAttempt({
+        from: r.workspace.id,
+        to: r.quizAttempt.workspaceId,
       }),
     },
     source: {
@@ -359,6 +518,44 @@ export const relations = defineRelations(
       conversation: r.one.conversation({
         from: r.message.conversationId,
         to: r.conversation.id,
+      }),
+    },
+    artifact: {
+      workspace: r.one.workspace({
+        from: r.artifact.workspaceId,
+        to: r.workspace.id,
+      }),
+      flashcards: r.many.flashcard({
+        from: r.artifact.id,
+        to: r.flashcard.artifactId,
+      }),
+      quizAttempts: r.many.quizAttempt({
+        from: r.artifact.id,
+        to: r.quizAttempt.artifactId,
+      }),
+    },
+    flashcard: {
+      artifact: r.one.artifact({
+        from: r.flashcard.artifactId,
+        to: r.artifact.id,
+      }),
+      workspace: r.one.workspace({
+        from: r.flashcard.workspaceId,
+        to: r.workspace.id,
+      }),
+    },
+    quizAttempt: {
+      artifact: r.one.artifact({
+        from: r.quizAttempt.artifactId,
+        to: r.artifact.id,
+      }),
+      workspace: r.one.workspace({
+        from: r.quizAttempt.workspaceId,
+        to: r.workspace.id,
+      }),
+      user: r.one.user({
+        from: r.quizAttempt.userId,
+        to: r.user.id,
       }),
     },
   })

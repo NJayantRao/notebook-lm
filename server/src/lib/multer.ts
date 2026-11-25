@@ -2,6 +2,7 @@ import { extname } from "node:path";
 import type { RequestHandler } from "express";
 import multer from "multer";
 
+import logger, { markLogged } from "../config/logger.js";
 import {
   BadRequestError,
   PayloadTooLargeError,
@@ -41,16 +42,26 @@ export const uploadPdfFile: RequestHandler = (req, res, next) => {
   parsePdfUpload(req, res, (error) => {
     if (error instanceof multer.MulterError) {
       if (error.code === "LIMIT_FILE_SIZE") {
-        next(
-          new PayloadTooLargeError(
-            "PDF files must be 25 MB or smaller.",
-            "PDF_TOO_LARGE"
-          )
+        logger.warn("upload.size_rejected", {
+          reason: error.code,
+          maxBytes: MAX_PDF_SIZE_BYTES,
+        });
+        const apiError = new PayloadTooLargeError(
+          "PDF files must be 25 MB or smaller.",
+          "PDF_TOO_LARGE"
         );
+        markLogged(apiError);
+        next(apiError);
         return;
       }
 
-      next(new BadRequestError("Invalid PDF upload.", "INVALID_PDF_UPLOAD"));
+      logger.warn("upload.rejected", { reason: error.code });
+      const apiError = new BadRequestError(
+        "Invalid PDF upload.",
+        "INVALID_PDF_UPLOAD"
+      );
+      markLogged(apiError);
+      next(apiError);
       return;
     }
 

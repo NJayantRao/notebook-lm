@@ -7,3 +7,5 @@ minimumReleaseAgeExclude:
   - '@ai-sdk/provider-utils@5.0.83'
   - '@ai-sdk/react@4.0.183'
   - ai@7.0.179
+  - '@xyflow/react@13.0.3'
+  - '@xyflow/system@1.0.1'

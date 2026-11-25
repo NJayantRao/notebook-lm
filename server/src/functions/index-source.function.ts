@@ -1,3 +1,4 @@
+import logger from "../config/logger.js";
 import sourceChunksService from "../services/source-chunks.service.js";
 import sourcesRepository, {
   type SourceRecord,
@@ -50,7 +51,7 @@ export const indexSourceFunction = inngest.createFunction(
 
       try {
         sourceId = requireSourceId(event.data.event.data);
-        console.error(`Indexing source ${sourceId} failed after retries:`, error);
+        logger.error("source.index.failed", { sourceId, error });
 
         const source = await sourcesRepository.findSourceById(sourceId);
         if (!source) {
@@ -65,23 +66,32 @@ export const indexSourceFunction = inngest.createFunction(
           },
         });
         if (!updated) {
-          console.warn(
-            `Source ${sourceId} was removed before its indexing failure could be recorded.`
-          );
+          logger.warn("source.index.failure_unrecorded", { sourceId });
         }
       } catch (persistError) {
-        console.error(
-          `Failed to record indexing failure for source ${sourceId}:`,
-          persistError
-        );
+        logger.error("source.index.failure_persist_failed", {
+          sourceId,
+          error: persistError,
+        });
       }
     },
   },
-  async ({ event, step }) => {
+  async ({ event, step, attempt, runId }) => {
+    const startedAt = performance.now();
     const sourceId = requireSourceId(event.data);
-    const loadedSource = await step.run("load-source", () =>
-      sourcesRepository.findSourceById(sourceId)
-    );
+    const loadedSource = await step.run("load-source", async () => {
+      const found = await sourcesRepository.findSourceById(sourceId);
+      if (found) {
+        logger.info("source.index.started", {
+          sourceId,
+          workspaceId: found.workspaceId,
+          sourceType: found.sourceType,
+          attempt,
+          runId,
+        });
+      }
+      return found;
+    });
     // Inngest serializes step output as JSON, so restore Date fields before
     // handing the record to the indexing service.
     const source: SourceRecord | undefined = loadedSource
@@ -94,6 +104,14 @@ export const indexSourceFunction = inngest.createFunction(
     if (!source || source.status === "ready") {
       return { sourceId, status: "skipped" };
     }
+
+    const jobMeta = {
+      sourceId,
+      workspaceId: source.workspaceId,
+      sourceType: source.sourceType,
+      attempt,
+      runId,
+    };
 
     if (
       source.sourceType !== "text" &&
@@ -142,12 +160,24 @@ export const indexSourceFunction = inngest.createFunction(
         if (!namespaceMissing) {
           throw error;
         }
+        logger.debug("source.index.vectors_namespace_missing", {
+          ...jobMeta,
+          status,
+        });
       }
     });
 
-    const chunkCount = await step.run("create-source-chunks", () =>
-      sourceChunksService.createSourceChunks(source)
-    );
+    const stats = await step.run("create-source-chunks", async () => {
+      logger.info("source.index.step", { ...jobMeta, step: "chunk-source" });
+      const result = await sourceChunksService.createSourceChunks(source);
+      logger.info("source.index.chunked", {
+        ...jobMeta,
+        chunkCount: result.count,
+        avgTokens: Math.round(result.totalTokens / Math.max(1, result.count)),
+      });
+      return result;
+    });
+    const chunkCount = stats.count;
     if (chunkCount === 0) {
       throw new Error(`Source ${sourceId} produced no indexable chunks.`);
     }
@@ -173,21 +203,42 @@ export const indexSourceFunction = inngest.createFunction(
         );
       }
 
-      await step.run(`upsert-source-chunks-${batchNumber}`, () =>
-        sourceChunksService.indexSourceChunkBatch(source, chunks)
-      );
+      await step.run(`upsert-source-chunks-${batchNumber}`, async () => {
+        const batchStartedAt = performance.now();
+        await sourceChunksService.indexSourceChunkBatch(source, chunks);
+        const durationMs = Math.round(performance.now() - batchStartedAt);
+        logger.info("source.index.embedded", {
+          ...jobMeta,
+          batch: batchNumber,
+          count: chunks.length,
+          durationMs,
+        });
+        logger.info("source.index.upserted", {
+          ...jobMeta,
+          batch: batchNumber,
+          count: chunks.length,
+        });
+      });
     }
 
-    const markedReady = await step.run("mark-source-ready", () =>
-      sourcesRepository.updateSourceRecord(sourceId, {
+    const markedReady = await step.run("mark-source-ready", async () => {
+      const updated = await sourcesRepository.updateSourceRecord(sourceId, {
         status: "ready",
         metadata: {
           ...sourceMetadata,
           chunkCount,
           indexedAt: new Date().toISOString(),
         },
-      })
-    );
+      });
+      if (updated) {
+        logger.info("source.index.ready", {
+          ...jobMeta,
+          chunkCount,
+          totalDurationMs: Math.round(performance.now() - startedAt),
+        });
+      }
+      return updated;
+    });
     if (!markedReady) {
       throw new Error(`Source ${sourceId} was deleted while it was indexing.`);
     }

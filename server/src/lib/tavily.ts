@@ -1,11 +1,15 @@
 import { tavily } from "@tavily/core";
 
 import { ENV } from "../config/env.js";
+import logger, { markLogged, timed } from "../config/logger.js";
 import {
   BadGatewayError,
   ServiceUnavailableError,
 } from "../utils/api-error.js";
-import { withTimeout } from "./timeout.js";
+import { logProviderTimeout, withTimeout } from "./timeout.js";
+
+const PROVIDER = "tavily";
+const TAVILY_TIMEOUT_MS = 30_000;
 
 export const searchWeb = async (query: string) => {
   const apiKey = ENV.TAVILY_API_KEY?.trim();
@@ -17,19 +21,28 @@ export const searchWeb = async (query: string) => {
   }
 
   try {
-    return await withTimeout(
-      tavily({ apiKey }).search(query, {
-        searchDepth: "basic",
-        maxResults: 5,
-      }),
-      30_000,
-      "Tavily web search"
+    return await timed(
+      "web_search",
+      { provider: PROVIDER, queryChars: query.length, timeoutMs: TAVILY_TIMEOUT_MS },
+      () =>
+        withTimeout(
+          tavily({ apiKey }).search(query, {
+            searchDepth: "basic",
+            maxResults: 5,
+          }),
+          TAVILY_TIMEOUT_MS,
+          "Tavily web search"
+        )
     );
   } catch (error) {
-    console.error("Tavily web search failed:", error);
-    throw new BadGatewayError(
+    if (!logProviderTimeout(PROVIDER, "web_search", TAVILY_TIMEOUT_MS, error)) {
+      logger.error("web_search.failed", { provider: PROVIDER, error });
+    }
+    const apiError = new BadGatewayError(
       "Web search failed. Please try again.",
       "TAVILY_SEARCH_FAILED"
     );
+    markLogged(apiError);
+    throw apiError;
   }
 };

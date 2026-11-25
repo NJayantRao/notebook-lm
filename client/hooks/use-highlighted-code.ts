@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { loadHighlighter } from "@/lib/highlighter";
+import { logger } from "@/lib/logger";
 
 export function useHighlightedCode(value: string, language: string) {
   // A trailing newline would render as an extra empty line.
@@ -20,7 +21,12 @@ export function useHighlightedCode(value: string, language: string) {
           setLoaded({ language, highlighter: next });
         }
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        logger.warn("highlight.load.failed", {
+          language,
+          errorName: error instanceof Error ? error.name : "UnknownError",
+        });
+      });
 
     return () => {
       cancelled = true;

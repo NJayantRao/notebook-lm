@@ -1,13 +1,46 @@
+import type { ErrorRequestHandler } from "express";
+
+import logger, { wasLogged } from "../config/logger.js";
+import { getRequestId } from "../lib/request-context.js";
 import ApiError, {
   BadRequestError,
   InternalServerError,
   PayloadTooLargeError,
 } from "../utils/api-error.js";
 
-const errorMiddleware = (err: any, _req: any, res: any, _next: any) => {
+const errorMiddleware: ErrorRequestHandler = (err, req, res, _next) => {
+  const requestId = getRequestId();
+  const method = req.method;
+  const path = req.path; // never include the query string
+
   if (err instanceof ApiError) {
-    console.error(err.stack);
-    return res.status(err.statusCode).json(err);
+    if (!wasLogged(err)) {
+      if (err.statusCode >= 500) {
+        logger.error("http.error", {
+          error: err,
+          method,
+          path,
+          status: err.statusCode,
+          code: err.code,
+          requestId,
+        });
+      } else {
+        logger.warn("http.error", {
+          method,
+          path,
+          status: err.statusCode,
+          code: err.code,
+          requestId,
+        });
+      }
+    }
+
+    res.status(err.statusCode).json(err);
+    return;
+  }
+
+  if (!wasLogged(err)) {
+    logger.error("http.error", { error: err, method, path, requestId });
   }
 
   let error: ApiError;
@@ -21,12 +54,10 @@ const errorMiddleware = (err: any, _req: any, res: any, _next: any) => {
       error = new BadRequestError("Invalid request");
     }
   } else {
-    console.error("[UNHANDLED_ERROR]: ", err?.stack ?? err);
     error = new InternalServerError("Internal Server Error");
   }
 
-  console.error(error.stack);
-  return res.status(error.statusCode).json(error);
+  res.status(error.statusCode).json(error);
 };
 
 export default errorMiddleware;

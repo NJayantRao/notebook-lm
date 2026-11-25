@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 
+import logger from "../config/logger.js";
 import { TooManyRequestsError } from "../utils/api-error.js";
 
 type RateBucket = {
@@ -57,11 +58,19 @@ export const createRateLimiter = ({
     res.setHeader("RateLimit-Reset", String(resetSeconds));
 
     if (bucket.count >= limit) {
-      res.setHeader("RateLimit-Remaining", "0");
-      res.setHeader(
-        "Retry-After",
-        String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)))
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((bucket.resetAt - now) / 1000)
       );
+      res.setHeader("RateLimit-Remaining", "0");
+      res.setHeader("Retry-After", String(retryAfterSeconds));
+      logger.warn("rate_limit.exceeded", {
+        userId,
+        bucket: name,
+        route: req.path,
+        limit,
+        retryAfterSeconds,
+      });
       return next(new TooManyRequestsError(message, code));
     }
 
@@ -95,4 +104,12 @@ export const memoryRateLimit = createRateLimiter({
   limit: 60,
   message: "Too many memory requests. Please try again later.",
   code: "MEMORY_RATE_LIMIT_EXCEEDED",
+});
+
+export const artifactRateLimit = createRateLimiter({
+  name: "artifact",
+  windowMs: ONE_HOUR,
+  limit: 60,
+  message: "Too many artifact requests. Please try again later.",
+  code: "ARTIFACT_RATE_LIMIT_EXCEEDED",
 });

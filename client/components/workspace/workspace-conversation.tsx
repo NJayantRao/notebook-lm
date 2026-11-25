@@ -6,17 +6,18 @@ import Markdown, { type Components } from "react-markdown";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
-  ExternalLink,
   Globe,
   LoaderCircle,
   MessageSquareText,
   Plus,
   Send,
+  Sparkles,
   Square,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardTopbar } from "@/components/dashboard/dashboard-topbar";
 import { AddMemoryDialog } from "@/components/workspace/add-memory-dialog";
+import { CitationChip } from "@/components/workspace/citation-chip";
 import { MemoriesDialog } from "@/components/workspace/memories-dialog";
 import { StudyStudioPanel } from "@/components/workspace/study-studio-panel";
 import { WorkspaceSourcesSidebar } from "@/components/workspace/workspace-sources-sidebar";
@@ -25,6 +26,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthSession } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api";
+import { logger } from "@/lib/logger";
 import type { ConversationMessage, StreamCitation } from "@/lib/types";
 import {
   getConversation,
@@ -33,38 +35,6 @@ import {
 import { getWorkspaceById } from "@/services/workspace.service";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-function formatClipTime(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return hours > 0
-    ? `${hours}:${pad(minutes)}:${pad(secs)}`
-    : `${minutes}:${pad(secs)}`;
-}
-
-function citationHref(citation: StreamCitation): string | undefined {
-  if (!citation.url) return undefined;
-  if (citation.startSeconds === undefined) return citation.url;
-  try {
-    const url = new URL(citation.url, window.location.origin);
-    url.searchParams.set("t", `${Math.floor(citation.startSeconds)}s`);
-    return url.toString();
-  } catch {
-    return citation.url;
-  }
-}
-
-function citationSuffix(citation: StreamCitation): string {
-  const parts: string[] = [];
-  if (citation.page !== undefined) parts.push(`p. ${citation.page}`);
-  if (citation.startSeconds !== undefined) {
-    parts.push(formatClipTime(citation.startSeconds));
-  }
-  return parts.length ? ` · ${parts.join(" · ")}` : "";
-}
 
 const retryNotFound = (failureCount: number, error: unknown) =>
   axios.isAxiosError(error) && error.response?.status === 404
@@ -243,12 +213,25 @@ function StreamingChat({
         }
       },
       onFinish: ({ isAbort, isError }) => {
+        logger.info("chat.stream.finished", {
+          status: isAbort ? "aborted" : isError ? "failed" : "completed",
+        });
         onFinishMessage(
           !isAbort && !isError ? finishedConversationId.current : null
         );
       },
     }
   );
+
+  // Errors from event handlers/async code are not caught by React error
+  // boundaries, so report them here without exposing message text.
+  useEffect(() => {
+    if (!error) return;
+    logger.error("chat.stream.failed", {
+      status: axios.isAxiosError(error) ? error.response?.status : undefined,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+  }, [error]);
 
   const streaming = status === "submitted" || status === "streaming";
   const lastMessage = messages[messages.length - 1];
@@ -320,28 +303,16 @@ function StreamingChat({
               {message.role === "assistant" && citations.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border pt-3">
                   {citations.map((citation) => (
-                    <span
+                    <CitationChip
                       key={`${message.id}-${citation.number}`}
-                      id={`${message.id}-${citation.number}`}
-                      title={`${citation.excerpt}${citationSuffix(citation)}`}
-                      className="inline-flex scroll-mt-24 items-center gap-1 rounded-lg bg-muted px-2 py-1 text-xs"
-                    >
-                      <span className="font-medium text-foreground/90">
-                        [{citation.number}] {citation.title}
-                        {citationSuffix(citation)}
-                      </span>
-                      {citationHref(citation) && (
-                        <a
-                          href={citationHref(citation)}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="text-muted-foreground hover:text-foreground"
-                          aria-label={`Open ${citation.title}`}
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </span>
+                      anchorId={`${message.id}-${citation.number}`}
+                      number={citation.number}
+                      title={citation.title}
+                      excerpt={citation.excerpt}
+                      url={citation.url}
+                      page={citation.page}
+                      startSeconds={citation.startSeconds}
+                    />
                   ))}
                 </div>
               )}
@@ -457,9 +428,10 @@ export function WorkspaceConversation({
   );
   const [addMemoryOpen, setAddMemoryOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
   const [sourcesSidebarOpen, setSourcesSidebarOpen] = useState(true);
 
-  const workspaceQuery = useQuery({
+  useQuery({
     queryKey: ["workspace", workspaceId],
     queryFn: () => getWorkspaceById(workspaceId),
     enabled: !!session,
@@ -577,6 +549,14 @@ export function WorkspaceConversation({
               >
                 Memories
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setStudioOpen(true)}
+                className="h-9 rounded-lg border-border bg-card/70 px-2.5 sm:px-3 lg:hidden"
+              >
+                <Sparkles className="mr-1 h-4 w-4 text-primary" aria-hidden="true" />
+                Studio
+              </Button>
             </div>
           </header>
 
@@ -603,8 +583,22 @@ export function WorkspaceConversation({
             )}
           </section>
         </main>
-     
+
+        <aside className="hidden w-72 shrink-0 border-l border-border bg-card/30 lg:flex xl:w-96">
+          <StudyStudioPanel workspaceId={workspaceId} enabled={!!session} />
+        </aside>
       </div>
+
+      {studioOpen && (
+        <div className="fixed inset-0 z-50 flex bg-background lg:hidden">
+          <StudyStudioPanel
+            workspaceId={workspaceId}
+            enabled={!!session}
+            onClose={() => setStudioOpen(false)}
+            className="border-l-0"
+          />
+        </div>
+      )}
       <AddMemoryDialog open={addMemoryOpen} onOpenChange={setAddMemoryOpen} />
       <MemoriesDialog open={memoriesOpen} onOpenChange={setMemoriesOpen} />
     </div>

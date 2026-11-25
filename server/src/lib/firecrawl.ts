@@ -1,9 +1,22 @@
 import { Firecrawl } from "firecrawl";
 import { ENV } from "../config/env.js";
+import logger, { markLogged, timed } from "../config/logger.js";
 import {
   BadGatewayError,
   ServiceUnavailableError,
 } from "../utils/api-error.js";
+import { logProviderTimeout } from "./timeout.js";
+
+const PROVIDER = "firecrawl";
+const FIRECRAWL_TIMEOUT_MS = 30_000;
+
+const hostnameOf = (url: string): string => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "unknown";
+  }
+};
 
 export type ScrapedWebsite = {
   url: string;
@@ -23,28 +36,44 @@ export const scrapeWebsiteByUrl = async (
     );
   }
 
-  const firecrawl = new Firecrawl({ apiKey, timeoutMs: 30_000 });
+  const firecrawl = new Firecrawl({ apiKey, timeoutMs: FIRECRAWL_TIMEOUT_MS });
+  const host = hostnameOf(url);
   let result;
 
   try {
-    result = await firecrawl.scrape(url, {
-      formats: ["markdown"],
-      onlyMainContent: true,
-    });
+    result = await timed(
+      "website.scrape",
+      { provider: PROVIDER, host, timeoutMs: FIRECRAWL_TIMEOUT_MS },
+      () =>
+        firecrawl.scrape(url, {
+          formats: ["markdown"],
+          onlyMainContent: true,
+        })
+    );
   } catch (error) {
-    console.error("Firecrawl website scrape failed:", error);
-    throw new BadGatewayError(
+    if (!logProviderTimeout(PROVIDER, "website.scrape", FIRECRAWL_TIMEOUT_MS, error)) {
+      logger.error("website.scrape.failed", { provider: PROVIDER, host, error });
+    }
+    const apiError = new BadGatewayError(
       "The website could not be scraped. Check the URL and try again.",
       "WEBSITE_SCRAPE_FAILED"
     );
+    markLogged(apiError);
+    throw apiError;
   }
 
   if (result.metadata?.error) {
-    console.error("Firecrawl returned a scrape error:", result.metadata.error);
-    throw new BadGatewayError(
+    logger.warn("website.scrape.degraded", {
+      provider: PROVIDER,
+      host,
+      reason: "provider_error",
+    });
+    const apiError = new BadGatewayError(
       "The website could not be scraped. Check the URL and try again.",
       "WEBSITE_SCRAPE_FAILED"
     );
+    markLogged(apiError);
+    throw apiError;
   }
 
   const markdown = result.markdown?.trim();

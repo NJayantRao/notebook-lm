@@ -5,4 +5,6 @@ import { relations } from "./schema.js";
 
 const db = drizzle(ENV.DATABASE_URL, { relations });
 
+export const closeDb = (): Promise<void> => db.$client.end();
+
 export default db;

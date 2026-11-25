@@ -1,5 +1,6 @@
 import { NonRetriableError } from "inngest";
 
+import logger from "../config/logger.js";
 import { inngest } from "../lib/inngest.js";
 import { getYouTubeVideoId } from "../lib/youtube.js";
 import sourcesRepository from "../repository/sources.repository.js";
@@ -90,7 +91,7 @@ export const prepareSourceFunction = inngest.createFunction(
 
       try {
         sourceId = requireSourceId(event.data.event.data);
-        console.error(`Preparing source ${sourceId} failed after retries:`, error);
+        logger.error("source.prepare.failed", { sourceId, error });
 
         const source = await sourcesRepository.findSourceById(sourceId);
         if (!source) {
@@ -105,27 +106,50 @@ export const prepareSourceFunction = inngest.createFunction(
           },
         });
         if (!updated) {
-          console.warn(
-            `Source ${sourceId} was removed before its preparation failure could be recorded.`
-          );
+          logger.warn("source.prepare.failure_unrecorded", { sourceId });
         }
       } catch (persistError) {
-        console.error(
-          `Failed to record preparation failure for source ${sourceId}:`,
-          persistError
-        );
+        logger.error("source.prepare.failure_persist_failed", {
+          sourceId,
+          error: persistError,
+        });
       }
     },
   },
-  async ({ event, step }) => {
+  async ({ event, step, attempt, runId }) => {
     const sourceId = requireSourceId(event.data);
-    const source = await step.run("load-source", () =>
-      sourcesRepository.findSourceById(sourceId)
-    );
+    const source = await step.run("load-source", async () => {
+      const found = await sourcesRepository.findSourceById(sourceId);
+      if (!found || found.status === "ready") {
+        logger.debug("source.prepare.skipped", {
+          sourceId,
+          attempt,
+          runId,
+          reason: found ? "already-ready" : "not-found",
+        });
+      } else {
+        logger.info("source.prepare.started", {
+          sourceId,
+          workspaceId: found.workspaceId,
+          sourceType: found.sourceType,
+          attempt,
+          runId,
+        });
+      }
+      return found;
+    });
 
     if (!source || source.status === "ready") {
       return { sourceId, status: "skipped" };
     }
+
+    const jobMeta = {
+      sourceId,
+      workspaceId: source.workspaceId,
+      sourceType: source.sourceType,
+      attempt,
+      runId,
+    };
 
     if (!source.content?.trim()) {
       if (source.sourceType === "website") {
@@ -138,6 +162,7 @@ export const prepareSourceFunction = inngest.createFunction(
         }
 
         const result: SaveResult = await step.run("scrape-and-save-website", async () => {
+          logger.info("source.prepare.step", { ...jobMeta, step: "scrape-website" });
           const scraped = await preparation.scrapeWebsite(url);
           const useScrapedTitle =
             source.metadata.useScrapedTitle === true && Boolean(scraped.title);
@@ -164,10 +189,16 @@ export const prepareSourceFunction = inngest.createFunction(
           requireStringMetadata(source.metadata, "videoId") ??
           (source.url ? getYouTubeVideoId(source.url) : null);
         if (!videoId) {
+          logger.warn("source.prepare.invalid_video_id", jobMeta);
           throw new NonRetriableError(`YouTube source ${sourceId} does not have a valid video ID.`);
         }
 
         const result: SaveResult = await step.run("fetch-and-save-youtube", async () => {
+          logger.info("source.prepare.step", {
+            ...jobMeta,
+            step: "fetch-youtube-transcript",
+            videoId,
+          });
           const transcript = await preparation.fetchYouTubeTranscript(videoId);
           const updated = await sourcesRepository.updateSourceRecord(sourceId, {
             content: transcript.content,
@@ -189,6 +220,7 @@ export const prepareSourceFunction = inngest.createFunction(
         }
 
         const result: SaveResult = await step.run("extract-and-save-pdf", async () => {
+          logger.info("source.prepare.step", { ...jobMeta, step: "extract-pdf" });
           try {
             const buffer = await preparation.downloadPdf(s3Key);
             await preparation.verifyPdf(buffer);
@@ -221,6 +253,10 @@ export const prepareSourceFunction = inngest.createFunction(
         );
       }
     }
+
+    await step.run("log-prepare-succeeded", () => {
+      logger.info("source.prepare.succeeded", jobMeta);
+    });
 
     await step.sendEvent("enqueue-source-indexing", {
       name: "source/index.requested",

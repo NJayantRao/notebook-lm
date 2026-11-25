@@ -6,6 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 
+import logger from "../config/logger.js";
 import {
   BadGatewayError,
   NotFoundError,
@@ -117,9 +118,28 @@ const loadUserMemories = async (
   try {
     return await searchUserMemories(userId, question);
   } catch (error) {
-    console.error("User memory search failed; continuing without memories:", error);
+    // Optional enhancement: never break an answer when memory is unavailable.
+    logger.warn("chat.memory_lookup.degraded", { userId, error });
     return [];
   }
+};
+
+const logRetrieval = (
+  userId: string,
+  workspaceId: string,
+  questionChars: number,
+  sourceCount: number,
+  webSearch: boolean,
+  startedAt: number
+): void => {
+  logger.info("chat.retrieval", {
+    userId,
+    workspaceId,
+    questionChars,
+    count: sourceCount,
+    webSearch,
+    durationMs: Math.round(performance.now() - startedAt),
+  });
 };
 
 // All retrieval (Pinecone search and Postgres hydration)
@@ -131,6 +151,7 @@ const prepareAnswer = async (
   history: { role: "user" | "assistant"; content: string }[],
   webSearch: boolean
 ): Promise<AnswerContext> => {
+  const retrievalStartedAt = performance.now();
   const workspace = await workspaceRepository.findWorkspaceByIdAndUserId(
     workspaceId,
     userId
@@ -155,6 +176,7 @@ const prepareAnswer = async (
     );
 
     if (sources.length === 0) {
+      logRetrieval(userId, workspaceId, question.length, 0, true, retrievalStartedAt);
       return { sources, chatModel, fixedAnswer: NO_WEB_RESULTS_MESSAGE };
     }
 
@@ -165,6 +187,14 @@ const prepareAnswer = async (
       )
       .join("\n\n");
 
+    logRetrieval(
+      userId,
+      workspaceId,
+      question.length,
+      sources.length,
+      true,
+      retrievalStartedAt
+    );
     return {
       sources,
       chatModel,
@@ -239,9 +269,19 @@ const prepareAnswer = async (
     }));
 
   if (sources.length === 0) {
+    logRetrieval(userId, workspaceId, question.length, 0, false, retrievalStartedAt);
     return { sources, chatModel, fixedAnswer: NO_SOURCES_MESSAGE };
   }
 
+  const userMemories = await loadUserMemories(userId, question);
+  logRetrieval(
+    userId,
+    workspaceId,
+    question.length,
+    sources.length,
+    false,
+    retrievalStartedAt
+  );
   return {
     sources,
     chatModel,
@@ -250,7 +290,7 @@ const prepareAnswer = async (
       promptHistory.slice(-10),
       formatSourceContext(sources),
       "workspace",
-      await loadUserMemories(userId, question)
+      userMemories
     ),
   };
 };
@@ -262,6 +302,15 @@ const createAnswer = async (
   history: { role: "user" | "assistant"; content: string }[],
   webSearch: boolean
 ): Promise<{ answer: string; sources: ConversationCitation[] }> => {
+  const startedAt = performance.now();
+  logger.info("chat.request", {
+    userId,
+    workspaceId,
+    historyCount: history.length,
+    questionChars: question.length,
+    webSearch,
+  });
+
   const prepared = await prepareAnswer(
     userId,
     workspaceId,
@@ -270,12 +319,32 @@ const createAnswer = async (
     webSearch
   );
 
-  return {
-    answer: prepared.prompt
-      ? await generateChatAnswerFromPrompt(prepared.prompt, prepared.chatModel)
-      : (prepared.fixedAnswer ?? NO_SOURCES_MESSAGE),
-    sources: prepared.sources,
-  };
+  let answer: string;
+  if (prepared.prompt) {
+    logger.info("chat.generate.started", {
+      userId,
+      workspaceId,
+      model: prepared.chatModel,
+      provider: "openai",
+      count: prepared.prompt.messages.length,
+    });
+    answer = await generateChatAnswerFromPrompt(
+      prepared.prompt,
+      prepared.chatModel
+    );
+    logger.info("chat.generate.completed", {
+      userId,
+      workspaceId,
+      model: prepared.chatModel,
+      provider: "openai",
+      answerChars: answer.length,
+      durationMs: Math.round(performance.now() - startedAt),
+    });
+  } else {
+    answer = prepared.fixedAnswer ?? NO_SOURCES_MESSAGE;
+  }
+
+  return { answer, sources: prepared.sources };
 };
 
 const enqueueMemoryRefresh = async (
@@ -297,10 +366,12 @@ const enqueueMemoryRefresh = async (
       },
     });
   } catch (error) {
-    console.error(
-      `Could not queue memory refresh for conversation ${conversationId}:`,
-      error
-    );
+    logger.warn("chat.memory.refresh.enqueue.failed", {
+      userId,
+      conversationId,
+      userMessageCount,
+      error,
+    });
   }
 };
 
@@ -350,22 +421,37 @@ const createConversation = async (
     input.webSearch
   );
 
-  const persisted = await conversationsRepository.persistExchange({
-    workspaceId,
-    title: getConversationTitle(input.message),
-    userContent: input.message,
-    assistantContent: response.answer,
-    sources: response.sources,
-  });
+  let persisted;
   try {
-    await enqueueMemoryRefresh(
-      userId,
-      persisted.conversation.id,
-      persisted.userMessageCount
-    );
+    persisted = await conversationsRepository.persistExchange({
+      workspaceId,
+      title: getConversationTitle(input.message),
+      userContent: input.message,
+      assistantContent: response.answer,
+      sources: response.sources,
+    });
   } catch (error) {
-    console.error("Could not refresh user memory:", error);
+    logger.error("chat.persist.failed", {
+      userId,
+      workspaceId,
+      answerChars: response.answer.length,
+      sourceCount: response.sources.length,
+      error,
+    });
+    throw error;
   }
+
+  logger.info("chat.persist.completed", {
+    userId,
+    workspaceId,
+    conversationId: persisted.conversation.id,
+    sourceCount: response.sources.length,
+  });
+  await enqueueMemoryRefresh(
+    userId,
+    persisted.conversation.id,
+    persisted.userMessageCount
+  );
   return persisted.conversation;
 };
 
@@ -392,22 +478,38 @@ const sendConversationMessage = async (
     input.webSearch
   );
 
-  const persisted = await conversationsRepository.persistExchange({
-    workspaceId,
-    conversationId,
-    userContent: input.message,
-    assistantContent: response.answer,
-    sources: response.sources,
-  });
+  let persisted;
   try {
-    await enqueueMemoryRefresh(
-      userId,
-      persisted.conversation.id,
-      persisted.userMessageCount
-    );
+    persisted = await conversationsRepository.persistExchange({
+      workspaceId,
+      conversationId,
+      userContent: input.message,
+      assistantContent: response.answer,
+      sources: response.sources,
+    });
   } catch (error) {
-    console.error("Could not refresh user memory:", error);
+    logger.error("chat.persist.failed", {
+      userId,
+      workspaceId,
+      conversationId,
+      answerChars: response.answer.length,
+      sourceCount: response.sources.length,
+      error,
+    });
+    throw error;
   }
+
+  logger.info("chat.persist.completed", {
+    userId,
+    workspaceId,
+    conversationId: persisted.conversation.id,
+    sourceCount: response.sources.length,
+  });
+  await enqueueMemoryRefresh(
+    userId,
+    persisted.conversation.id,
+    persisted.userMessageCount
+  );
   return persisted.conversation;
 };
 
@@ -436,6 +538,16 @@ const streamAnswer = async (
   input: CreateConversationInput,
   res: Response
 ): Promise<void> => {
+  const streamStartedAt = performance.now();
+  logger.info("chat.request", {
+    userId,
+    workspaceId,
+    ...(conversationId ? { conversationId } : {}),
+    questionChars: input.message.length,
+    webSearch: input.webSearch,
+    stream: true,
+  });
+
   const currentConversation = conversationId
     ? await getConversation(userId, workspaceId, conversationId)
     : undefined;
@@ -484,6 +596,15 @@ const streamAnswer = async (
         return;
       }
 
+      logger.info("chat.generate.started", {
+        userId,
+        workspaceId,
+        conversationId: activeConversationId,
+        model: prepared.chatModel,
+        provider: "openai",
+        count: prepared.prompt.messages.length,
+        stream: true,
+      });
       const result = streamChatAnswer(prepared.prompt, prepared.chatModel);
       writer.merge(
         toUIMessageStream({
@@ -495,6 +616,15 @@ const streamAnswer = async (
     },
     onEnd: async ({ outcome, isAborted, isCancelled, responseMessage }) => {
       if (isAborted || isCancelled || outcome.status !== "completed") {
+        logger.info("chat.stream.aborted", {
+          userId,
+          workspaceId,
+          conversationId: activeConversationId,
+          status: outcome.status,
+          isAborted,
+          isCancelled,
+          durationMs: Math.round(performance.now() - streamStartedAt),
+        });
         return;
       }
 
@@ -506,11 +636,29 @@ const streamAnswer = async (
         .join("")
         .trim();
       if (!answer) {
+        logger.warn("chat.generate.empty", {
+          userId,
+          workspaceId,
+          conversationId: activeConversationId,
+          durationMs: Math.round(performance.now() - streamStartedAt),
+        });
         return;
       }
 
+      logger.info("chat.generate.completed", {
+        userId,
+        workspaceId,
+        conversationId: activeConversationId,
+        model: prepared.chatModel,
+        provider: "openai",
+        answerChars: answer.length,
+        stream: true,
+        durationMs: Math.round(performance.now() - streamStartedAt),
+      });
+
+      let persisted;
       try {
-        const persisted = await conversationsRepository.persistExchange({
+        persisted = await conversationsRepository.persistExchange({
           workspaceId,
           ...(conversationId
             ? { conversationId }
@@ -522,25 +670,29 @@ const streamAnswer = async (
           assistantContent: answer,
           sources: prepared.sources,
         });
-
-        try {
-          await enqueueMemoryRefresh(
-            userId,
-            persisted.conversation.id,
-            persisted.userMessageCount
-          );
-        } catch (error) {
-          console.error(
-            `Could not queue memory refresh after streaming for conversation ${persisted.conversation.id}:`,
-            error
-          );
-        }
       } catch (error) {
-        console.error(
-          `Could not persist streamed exchange for conversation ${activeConversationId}:`,
-          error
-        );
+        logger.error("chat.persist.failed", {
+          userId,
+          workspaceId,
+          conversationId: activeConversationId,
+          answerChars: answer.length,
+          sourceCount: prepared.sources.length,
+          error,
+        });
+        return;
       }
+
+      logger.info("chat.persist.completed", {
+        userId,
+        workspaceId,
+        conversationId: persisted.conversation.id,
+        sourceCount: prepared.sources.length,
+      });
+      await enqueueMemoryRefresh(
+        userId,
+        persisted.conversation.id,
+        persisted.userMessageCount
+      );
     },
     onError: () =>
       "The assistant could not generate a response. Please try again.",
