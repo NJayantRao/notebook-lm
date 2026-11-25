@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { RequireAuth } from "@/components/auth/require-auth";
 import { WorkspaceConversation } from "@/components/workspace/workspace-conversation";
 
 async function WorkspacePageContent({
@@ -9,11 +8,7 @@ async function WorkspacePageContent({
 }) {
   const { workspaceId } = await params;
 
-  return (
-    <RequireAuth>
-      <WorkspaceConversation workspaceId={workspaceId} />
-    </RequireAuth>
-  );
+  return <WorkspaceConversation workspaceId={workspaceId} />;
 }
 
 export default function WorkspacePage({

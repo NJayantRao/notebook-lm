@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BookOpen, Download, Layers3, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,10 @@ import { cn } from "@/lib/utils";
 import type { Artifact, Flashcard } from "@/lib/artifact-types";
 
 const RATINGS: Array<{ rating: number; label: string; tone: string }> = [
-  { rating: 0, label: "Again", tone: "border-rose-500/40 text-rose-500" },
-  { rating: 3, label: "Hard", tone: "border-amber-500/40 text-amber-500" },
-  { rating: 4, label: "Good", tone: "border-emerald-500/40 text-emerald-500" },
-  { rating: 5, label: "Easy", tone: "border-sky-500/40 text-sky-500" },
+  { rating: 0, label: "Again", tone: "border-destructive/40 text-destructive" },
+  { rating: 3, label: "Hard", tone: "border-warning/40 text-warning" },
+  { rating: 4, label: "Good", tone: "border-success/40 text-success" },
+  { rating: 5, label: "Easy", tone: "border-primary/40 text-primary" },
 ];
 
 export function FlashcardView({ artifact }: { artifact: Artifact }) {
@@ -34,6 +34,7 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
     artifact.content.kind === "flashcards"
   );
   const review = useReviewFlashcard(artifact.workspaceId);
+  const reviewFlashcard = review.mutateAsync;
   const exportDeck = useFlashcardExport(artifact.workspaceId);
   const [studyAll, setStudyAll] = useState(false);
   const [index, setIndex] = useState(0);
@@ -50,40 +51,73 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
     setRevealed(false);
   };
 
-  if (artifact.content.kind !== "flashcards") {
-    return null;
-  }
-
   const current = deck[Math.min(index, Math.max(deck.length - 1, 0))];
   const filename =
     artifact.title.replace(/[^\w-]+/gu, "-").replace(/^-|-$/gu, "") ||
     "flashcards";
 
-  const grade = async (rating: number) => {
-    if (!current) return;
-    try {
-      await review.mutateAsync({
-        artifactId: artifact.id,
-        cardId: current.id,
-        rating,
-      });
-      setRevealed(false);
-      setIndex((value) => (value + 1) % Math.max(1, deck.length));
-    } catch {
-      // The mutation hook logs status/error name without card content.
-    }
-  };
+  const grade = useCallback(
+    async (rating: number) => {
+      if (!current) return;
+      try {
+        await reviewFlashcard({
+          artifactId: artifact.id,
+          cardId: current.id,
+          rating,
+        });
+        setRevealed(false);
+        setIndex((value) => (value + 1) % Math.max(1, deck.length));
+      } catch {
+        // The mutation hook logs status/error name without card content.
+      }
+    },
+    [artifact.id, current, deck.length, reviewFlashcard]
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName))
+      ) {
+        return;
+      }
+      if (event.code === "Space" && current) {
+        event.preventDefault();
+        setRevealed((value) => !value);
+        return;
+      }
+      const ratingIndex = Number(event.key) - 1;
+      if (
+        revealed &&
+        ratingIndex >= 0 &&
+        ratingIndex < RATINGS.length &&
+        !review.isPending
+      ) {
+        event.preventDefault();
+        void grade(RATINGS[ratingIndex].rating);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [current, grade, revealed, review.isPending]);
+
+  if (artifact.content.kind !== "flashcards") {
+    return null;
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-8">
       <header className="space-y-2 border-b border-border pb-3">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="flex items-center gap-2 text-base font-semibold">
-              <BookOpen className="h-4 w-4 text-primary" aria-hidden="true" />
+            <h3 className="flex items-center gap-2 font-heading text-3xl">
+              <BookOpen className="size-5 text-primary" aria-hidden="true" />
               {artifact.content.title}
             </h3>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               {flashcards.length} cards · {dueFlashcards.length} due
             </p>
           </div>
@@ -93,9 +127,9 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
             size="sm"
             aria-pressed={studyAll}
             onClick={toggleStudyAll}
-            className="h-7 shrink-0 gap-1 px-2 text-[11px]"
+            className="h-8 shrink-0 gap-1.5 rounded-full px-3 text-xs"
           >
-            <Layers3 className="h-3.5 w-3.5" aria-hidden="true" />
+            <Layers3 className="size-4" aria-hidden="true" />
             {studyAll ? "Due only" : "Study all"}
           </Button>
         </div>
@@ -112,9 +146,9 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
                 format: "apkg",
               })
             }
-            className="h-7 gap-1 px-2 text-[11px]"
+            className="h-8 gap-1.5 rounded-full px-3 text-xs"
           >
-            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            <Download className="size-4" aria-hidden="true" />
             Anki (.apkg)
           </Button>
           <Button
@@ -129,53 +163,69 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
                 format: "json",
               })
             }
-            className="h-7 gap-1 px-2 text-[11px]"
+            className="h-8 gap-1.5 rounded-full px-3 text-xs"
           >
-            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            <Download className="size-4" aria-hidden="true" />
             JSON
           </Button>
         </div>
         {exportDeck.isError && (
-          <p role="alert" className="text-[11px] text-rose-400">
+          <p role="alert" className="text-sm text-destructive">
             {getErrorMessage(exportDeck.error)}
           </p>
         )}
       </header>
 
       {!current ? (
-        <div className="rounded-xl border border-dashed border-border p-6 text-center">
-          <p className="text-sm font-medium">
+        <div className="rounded-3xl border border-dashed border-border p-10 text-center">
+          <p className="font-heading text-2xl">
             {studyAll ? "No cards in this deck." : "All caught up!"}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             {studyAll
               ? "Generate a new deck from the Study Studio tile."
               : "Switch to Study all to review the full deck."}
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
+          <div>
+            <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+              <span>{studyAll ? "Reviewing all cards" : "Cards due for review"}</span>
+              <span className="tabular-nums">{index + 1} / {deck.length}</span>
+            </div>
+            <div
+              className="h-1.5 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={index + 1}
+              aria-valuemin={1}
+              aria-valuemax={deck.length}
+              aria-label="Flashcard progress"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${((index + 1) / deck.length) * 100}%` }}
+              />
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => setRevealed((value) => !value)}
-            className="w-full rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/40"
+            className="flex min-h-[min(48dvh,28rem)] w-full flex-col justify-center rounded-3xl border border-border bg-card p-8 text-left transition-colors hover:border-primary/40 sm:p-12"
             aria-label={revealed ? "Hide answer" : "Reveal answer"}
           >
-            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               <span>{revealed ? "Answer" : "Question"}</span>
-              <span>
-                {index + 1} / {deck.length}
-              </span>
             </div>
             <p
               className={cn(
-                "mt-4 min-h-24 text-center text-sm leading-relaxed",
+                "mt-8 min-h-28 text-center font-heading text-2xl leading-relaxed sm:text-3xl",
                 revealed ? "text-foreground" : "font-medium"
               )}
             >
               {revealed ? current.back : current.front}
             </p>
-            <p className="mt-3 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+            <p className="mt-8 text-center text-xs text-muted-foreground">
               {revealed ? "Tap to hide" : "Tap to reveal"}
             </p>
           </button>
@@ -205,14 +255,14 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
                 variant="outline"
                 disabled={!revealed || review.isPending}
                 onClick={() => void grade(rating)}
-                className={cn("h-8 text-[11px]", tone)}
+                className={cn("h-10 rounded-xl text-sm", tone)}
               >
                 {label}
               </Button>
             ))}
           </div>
           {review.isError && (
-            <p role="alert" className="text-[11px] text-rose-400">
+            <p role="alert" className="text-sm text-destructive">
               {getErrorMessage(review.error)}
             </p>
           )}
@@ -224,11 +274,14 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
               setRevealed(false);
               setIndex((value) => (value + 1) % Math.max(1, deck.length));
             }}
-            className="w-full text-[11px]"
+            className="w-full text-xs"
           >
-            <RotateCcw className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+            <RotateCcw className="mr-1 size-4" aria-hidden="true" />
             Skip card
           </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            Space to flip · 1–4 to rate
+          </p>
         </div>
       )}
     </div>

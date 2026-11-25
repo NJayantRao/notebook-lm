@@ -26,9 +26,9 @@ const NODE_WIDTH = 190;
 const NODE_HEIGHT = 76;
 
 const difficultyTone: Record<MindMapNode["difficulty"], string> = {
-  intro: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
-  intermediate: "border-amber-500/40 bg-amber-500/10 text-amber-600",
-  advanced: "border-rose-500/40 bg-rose-500/10 text-rose-600",
+  intro: "border-success/40 bg-success/10 text-success",
+  intermediate: "border-warning/40 bg-warning/10 text-warning",
+  advanced: "border-destructive/40 bg-destructive/10 text-destructive",
 };
 
 function layoutNodes(nodes: Node[], edges: Edge[]): Node[] {
@@ -56,7 +56,13 @@ function layoutNodes(nodes: Node[], edges: Edge[]): Node[] {
   });
 }
 
-export function MindMapView({ content }: { content: MindMapContent }) {
+export function MindMapView({
+  content,
+  fullPage = false,
+}: {
+  content: MindMapContent;
+  fullPage?: boolean;
+}) {
   const [textView, setTextView] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -116,7 +122,13 @@ export function MindMapView({ content }: { content: MindMapContent }) {
   const handleNodeClick: NodeMouseHandler = (_, node) => setSelectedId(node.id);
 
   return (
-    <div className="space-y-3">
+    <div
+      className={
+        fullPage
+          ? "relative flex h-full min-h-0 flex-col"
+          : "flex min-h-0 flex-col space-y-3"
+      }
+    >
       <header className="flex items-start justify-between gap-2 border-b border-border pb-3">
         <div className="min-w-0">
           <h3 className="flex items-center gap-2 text-base font-semibold">
@@ -136,12 +148,18 @@ export function MindMapView({ content }: { content: MindMapContent }) {
           className="h-7 shrink-0 gap-1.5 px-2 text-[11px]"
         >
           <List className="h-3.5 w-3.5" aria-hidden="true" />
-          {textView ? "Graph" : "Text"}
+          {textView ? "Graph" : fullPage ? "List" : "Text"}
         </Button>
       </header>
 
       {textView ? (
-        <ol className="space-y-3" aria-label="Mind map concepts, text alternative">
+        <ol
+          className={cn(
+            "space-y-3 overflow-y-auto",
+            fullPage && "min-h-0 flex-1 py-4"
+          )}
+          aria-label="Mind map concepts, text alternative"
+        >
           {content.nodes.map((node, index) => (
             <li
               key={node.id}
@@ -168,8 +186,11 @@ export function MindMapView({ content }: { content: MindMapContent }) {
       ) : (
         <div
           role="region"
-          aria-label={`Interactive concept graph for ${content.title}. Use the Text button for an accessible list.`}
-          className="h-[22rem] overflow-hidden rounded-xl border border-border bg-background"
+          aria-label={`Interactive concept graph for ${content.title}. Use the ${fullPage ? "List" : "Text"} button for an accessible list.`}
+          className={cn(
+            "relative h-[22rem] overflow-hidden rounded-xl border border-border bg-background",
+            fullPage && "min-h-0 flex-1 rounded-none border-0"
+          )}
         >
           <ReactFlow
             nodes={nodes}
@@ -194,7 +215,11 @@ export function MindMapView({ content }: { content: MindMapContent }) {
       {selected && (
         <section
           aria-label={`Details for ${selected.label}`}
-          className="rounded-xl border border-primary/25 bg-card p-3"
+          className={cn(
+            "rounded-xl border border-primary/25 bg-card p-3",
+            fullPage &&
+              "absolute inset-y-3 right-3 z-10 w-[min(24rem,calc(100%-1.5rem))] overflow-y-auto shadow-xl"
+          )}
         >
           <div className="flex items-start justify-between gap-2">
             <h4 className="text-sm font-semibold">{selected.label}</h4>

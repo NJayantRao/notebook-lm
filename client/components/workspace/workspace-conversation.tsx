@@ -1,26 +1,40 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  startTransition,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import axios from "axios";
 import Markdown, { type Components } from "react-markdown";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
+  Check,
+  Copy,
   Globe,
   LoaderCircle,
   MessageSquareText,
   Plus,
   Send,
-  Sparkles,
   Square,
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { DashboardTopbar } from "@/components/dashboard/dashboard-topbar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AddMemoryDialog } from "@/components/workspace/add-memory-dialog";
+import { AddSourceDialog } from "@/components/workspace/add-source-dialog";
 import { CitationChip } from "@/components/workspace/citation-chip";
-import { MemoriesDialog } from "@/components/workspace/memories-dialog";
-import { StudyStudioPanel } from "@/components/workspace/study-studio-panel";
-import { WorkspaceSourcesSidebar } from "@/components/workspace/workspace-sources-sidebar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,11 +42,8 @@ import { useAuthSession } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import type { ConversationMessage, StreamCitation } from "@/lib/types";
-import {
-  getConversation,
-  listConversations,
-} from "@/services/conversation.service";
-import { getWorkspaceById } from "@/services/workspace.service";
+import { getConversation } from "@/services/conversation.service";
+import { listAllWorkspaceSources } from "@/services/source.service";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -98,9 +109,15 @@ const buildMarkdownComponents = (messageId: string): Components => ({
             event.preventDefault();
             document
               .getElementById(`${messageId}-${number}`)
-              ?.scrollIntoView({ behavior: "smooth", block: "center" });
+              ?.scrollIntoView({
+                behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+                  .matches
+                  ? "auto"
+                  : "smooth",
+                block: "center",
+              });
           }}
-          className="mx-0.5 inline-flex min-w-5 items-center justify-center rounded-md bg-white/[0.08] px-1.5 py-0.5 align-baseline text-xs font-medium text-foreground no-underline"
+          className="mx-0.5 inline-flex min-w-5 items-center justify-center rounded-md bg-muted px-1.5 py-0.5 align-baseline text-xs font-medium text-foreground no-underline"
         >
           {children}
         </a>
@@ -136,17 +153,17 @@ const buildMarkdownComponents = (messageId: string): Components => ({
     <h3 className="mb-2 mt-4 text-sm font-semibold first:mt-0">{children}</h3>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="mb-3 border-l-2 border-white/20 pl-3 text-muted-foreground last:mb-0">
+    <blockquote className="mb-3 border-l-2 border-border pl-3 text-muted-foreground last:mb-0">
       {children}
     </blockquote>
   ),
   pre: ({ children }) => (
-    <pre className="mb-3 overflow-x-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs last:mb-0">
+    <pre className="mb-3 overflow-x-auto rounded-xl border border-border bg-muted p-3 text-xs last:mb-0">
       {children}
     </pre>
   ),
   code: ({ children }) => (
-    <code className="rounded bg-white/10 px-1 py-0.5">{children}</code>
+    <code className="rounded bg-muted px-1 py-0.5">{children}</code>
   ),
   table: ({ children }) => (
     <div className="mb-3 overflow-x-auto last:mb-0">
@@ -154,12 +171,12 @@ const buildMarkdownComponents = (messageId: string): Components => ({
     </div>
   ),
   th: ({ children }) => (
-    <th className="border border-white/10 bg-white/5 px-2 py-1 text-left font-medium">
+    <th className="border border-border bg-muted px-2 py-1 text-left font-medium">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="border border-white/10 px-2 py-1 align-top">{children}</td>
+    <td className="border border-border px-2 py-1 align-top">{children}</td>
   ),
 });
 
@@ -169,16 +186,27 @@ function StreamingChat({
   chatId,
   initialMessages,
   onFinishMessage,
+  hasReadySources,
+  sourceError,
+  onAddSource,
+  onAddMemory,
 }: {
   workspaceId: string;
   conversationId: string | null;
   chatId: string;
   initialMessages: ChatUIMessage[];
   onFinishMessage: (conversationId: string | null) => void;
+  hasReadySources: boolean;
+  sourceError: string | null;
+  onAddSource: () => void;
+  onAddMemory: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const finishedConversationId = useRef<string | null>(null);
 
   const transport = useMemo(
@@ -241,28 +269,99 @@ function StreamingChat({
     messagesEndRef.current?.scrollIntoView({ block: "end" });
   }, [lastMessageTextLength, messages.length, status]);
 
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 8 * 24)}px`;
+  }, [draft]);
+
+  const sendPrompt = (prompt: string) => {
+    if (streaming) return;
+    finishedConversationId.current = null;
+    setDraft("");
+    void sendMessage({ text: prompt });
+  };
+
   const submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const message = draft.trim();
     if (!message || streaming) return;
-    finishedConversationId.current = null;
-    setDraft("");
-    void sendMessage({ text: message });
+    sendPrompt(message);
+  };
+
+  const copyMessage = async (messageId: string, text: string) => {
+    setCopyError(null);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      window.setTimeout(() => setCopiedMessageId(null), 1500);
+    } catch {
+      setCopyError("Could not copy this message.");
+    }
   };
 
   return (
-    <>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-5">
+    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 sm:px-7">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-8">
         {messages.length === 0 && (
-          <div className="flex min-h-64 flex-col items-center justify-center text-center">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card text-foreground/80">
-              <MessageSquareText className="h-5 w-5" />
-            </div>
-            <h2 className="text-lg font-semibold">Start a conversation</h2>
-            <p className="mt-2 max-w-md text-sm text-muted-foreground">
-              Ask a question about this workspace. Answers use your indexed
+          <div className="flex min-h-[min(52dvh,34rem)] flex-col items-center justify-center text-center">
+            <MessageSquareText className="mb-4 size-6 text-primary" />
+            <h1 className="font-heading text-4xl font-medium tracking-tight sm:text-5xl">
+              What would you like to understand?
+            </h1>
+            <p className="mt-3 max-w-lg text-sm text-muted-foreground">
+              Ask a question about this workspace. Answers are grounded in your
               sources and include citations.
             </p>
+            {sourceError ? (
+              <div className="mt-5 flex flex-col items-center gap-2">
+                <p role="alert" className="text-sm text-destructive">
+                  {sourceError}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onAddSource}
+                  className="rounded-full"
+                >
+                  Add source
+                </Button>
+              </div>
+            ) : hasReadySources ? (
+              <div className="mt-7 flex max-w-2xl flex-wrap justify-center gap-2">
+                {[
+                  "Summarize my sources",
+                  "List the key takeaways",
+                  "Explain the hardest concept",
+                ].map((suggestion) => (
+                  <Button
+                    key={suggestion}
+                    type="button"
+                    variant="outline"
+                    className="h-auto rounded-full px-3 py-2 text-sm"
+                    onClick={() => sendPrompt(suggestion)}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+                <Link
+                  href={`/dashboard/workspaces/${workspaceId}/artifacts`}
+                  className="inline-flex h-9 items-center rounded-full border border-border px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Create a quiz
+                </Link>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                onClick={onAddSource}
+                className="mt-7 rounded-full px-5"
+              >
+                <Plus className="size-4" />
+                Add your first source
+              </Button>
+            )}
           </div>
         )}
 
@@ -278,50 +377,76 @@ function StreamingChat({
           );
 
           return (
-            <article
+            <div
               key={message.id}
-              className={`max-w-4xl rounded-2xl border p-4 ${
-                message.role === "user"
-                  ? "ml-auto border-border bg-card"
-                  : "border-border bg-card"
+              className={`mb-7 flex w-full ${
+                message.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {message.role === "user" ? "You" : "Assistant"}
-              </p>
-              {message.role === "user" ? (
-                <p className="whitespace-pre-wrap text-base leading-relaxed">
-                  {text}
-                </p>
-              ) : (
-                <div className="text-base leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  <Markdown components={buildMarkdownComponents(message.id)}>
-                    {markdown}
-                  </Markdown>
+              <article
+                className={`group min-w-0 ${
+                  message.role === "user"
+                    ? "max-w-[88%] rounded-2xl bg-muted/80 px-4 py-3"
+                    : "w-full max-w-full py-1"
+                }`}
+              >
+                {message.role === "user" ? (
+                  <p className="whitespace-pre-wrap text-sm leading-7">{text}</p>
+                ) : (
+                  <div className="text-base leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                    <Markdown components={buildMarkdownComponents(message.id)}>
+                      {markdown}
+                    </Markdown>
+                  </div>
+                )}
+                {message.role === "assistant" && citations.length > 0 && (
+                  <details className="mt-4 border-t border-border pt-3">
+                    <summary className="w-fit cursor-pointer list-none text-xs text-muted-foreground marker:hidden hover:text-foreground">
+                      Sources ({citations.length})
+                    </summary>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {citations.map((citation) => (
+                        <CitationChip
+                          key={`${message.id}-${citation.number}`}
+                          anchorId={`${message.id}-${citation.number}`}
+                          number={citation.number}
+                          title={citation.title}
+                          excerpt={citation.excerpt}
+                          url={citation.url}
+                          page={citation.page}
+                          startSeconds={citation.startSeconds}
+                        />
+                      ))}
+                    </div>
+                  </details>
+                )}
+                <div className="mt-2 flex justify-end opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Copy message"
+                    title="Copy message"
+                    onClick={() => void copyMessage(message.id, text)}
+                    className="text-muted-foreground"
+                  >
+                    {copiedMessageId === message.id ? (
+                      <Check className="size-3.5" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                  </Button>
                 </div>
-              )}
-              {message.role === "assistant" && citations.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border pt-3">
-                  {citations.map((citation) => (
-                    <CitationChip
-                      key={`${message.id}-${citation.number}`}
-                      anchorId={`${message.id}-${citation.number}`}
-                      number={citation.number}
-                      title={citation.title}
-                      excerpt={citation.excerpt}
-                      url={citation.url}
-                      page={citation.page}
-                      startSeconds={citation.startSeconds}
-                    />
-                  ))}
-                </div>
-              )}
-            </article>
+              </article>
+            </div>
           );
         })}
         {streaming && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <LoaderCircle className="h-4 w-4 animate-spin" />
+          <div
+            className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
+            aria-live="polite"
+          >
+            <LoaderCircle className="size-4 animate-spin" />
             {webSearchEnabled
               ? "Searching the web and generating an answer..."
               : "Searching workspace sources and generating an answer..."}
@@ -332,15 +457,16 @@ function StreamingChat({
 
       <form
         onSubmit={submitMessage}
-        className="mx-auto w-full shrink-0 max-w-5xl"
+        className="sticky bottom-0 z-10 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
       >
         {error && (
-          <p role="alert" className="mb-2 text-sm text-red-300">
+          <p role="alert" className="mb-2 text-sm text-destructive">
             {getErrorMessage(error)}
           </p>
         )}
-        <div className="flex items-end gap-2 rounded-2xl border border-border bg-card/80 p-2 shadow-lg">
+        <div className="rounded-2xl border border-border bg-card p-2 transition-colors focus-within:border-ring/50">
           <Textarea
+            ref={textareaRef}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -353,14 +479,40 @@ function StreamingChat({
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            placeholder="Ask a question about your sources..."
+            placeholder="Ask anything about your sources..."
             aria-label="Your question"
-            rows={2}
+            rows={1}
             maxLength={4000}
             disabled={streaming}
-            className="max-h-40 min-h-12 resize-y border-0 bg-transparent text-base md:text-base focus-visible:ring-0"
+            className="min-h-9 max-h-48 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-base focus-visible:ring-0"
           />
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex items-center justify-between gap-2 px-1 pb-1">
+            <div className="flex min-w-0 items-center gap-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full"
+                      aria-label="Add to workspace"
+                    />
+                  }
+                >
+                  <Plus className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top">
+                  <DropdownMenuItem onSelect={onAddSource}>
+                    <Plus className="size-4" />
+                    Add source
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={onAddMemory}>
+                    <MessageSquareText className="size-4" />
+                    Add memory
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             <Button
               type="button"
               variant="ghost"
@@ -371,42 +523,47 @@ function StreamingChat({
               onClick={() => setWebSearchEnabled((enabled) => !enabled)}
               className={
                 webSearchEnabled
-                  ? "mb-0.5 h-10 rounded-xl bg-white/[0.08] px-3 text-foreground hover:bg-white/[0.12] hover:text-foreground"
-                  : "mb-0.5 h-10 rounded-xl px-3 text-muted-foreground"
+                  ? "h-8 rounded-full bg-primary/10 px-3 text-primary hover:bg-primary/15"
+                  : "h-8 rounded-full px-3 text-muted-foreground"
               }
             >
-              <Globe className="h-4 w-4" />
+              <Globe className="size-4" />
               <span className="ml-1.5 text-xs">Web search</span>
             </Button>
+            </div>
             {streaming ? (
               <Button
                 type="button"
                 aria-label="Stop generating"
                 title="Stop generating"
                 onClick={() => stop()}
-                className="mb-0.5 h-10 w-10 rounded-xl border border-white/15 bg-white/5 p-0 text-foreground hover:bg-white/10"
+                variant="outline"
+                size="icon"
+                className="size-8 rounded-full"
               >
-                <Square className="h-4 w-4" />
+                <Square className="size-3.5" />
               </Button>
             ) : (
               <Button
                 type="submit"
                 aria-label="Send question"
                 disabled={!draft.trim()}
-                className="mb-0.5 h-10 w-10 rounded-xl bg-foreground p-0 text-background hover:bg-foreground/90"
+                size="icon"
+                className="size-8 rounded-full"
               >
-                <Send className="h-4 w-4" />
+                <Send className="size-3.5" />
               </Button>
             )}
           </div>
         </div>
-        <p className="mt-2 text-center text-xs text-muted-foreground/70">
-          {webSearchEnabled
-            ? "Web search is enabled for this question."
-            : "Answers are generated from indexed workspace sources."}
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          {copyError ??
+            (webSearchEnabled
+              ? "Web search is enabled for this question."
+              : "NotebookLM can make mistakes. Check important details against the sources.")}
         </p>
       </form>
-    </>
+    </div>
   );
 }
 
@@ -417,9 +574,13 @@ export function WorkspaceConversation({
 }) {
   const { data: session } = useAuthSession();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlConversationId = searchParams.get("c");
+  const lastSyncedUrlConversationId = useRef(urlConversationId);
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
-  >(null);
+  >(() => urlConversationId);
   const [createdConversationId, setCreatedConversationId] = useState<
     string | null
   >(null);
@@ -427,22 +588,30 @@ export function WorkspaceConversation({
     () => `new-${crypto.randomUUID()}`
   );
   const [addMemoryOpen, setAddMemoryOpen] = useState(false);
-  const [memoriesOpen, setMemoriesOpen] = useState(false);
-  const [studioOpen, setStudioOpen] = useState(false);
-  const [sourcesSidebarOpen, setSourcesSidebarOpen] = useState(true);
+  const [addSourceOpen, setAddSourceOpen] = useState(false);
+  const sourcesQuery = useQuery({
+    queryKey: ["sources", workspaceId],
+    queryFn: () => listAllWorkspaceSources(workspaceId),
+    enabled: !!session,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (source) =>
+          source.status === "pending" || source.status === "processing"
+      )
+        ? 3000
+        : false,
+  });
+  useEffect(() => {
+    if (lastSyncedUrlConversationId.current === urlConversationId) return;
+    lastSyncedUrlConversationId.current = urlConversationId;
+    if (urlConversationId === createdConversationId) return;
+    startTransition(() => {
+      setCreatedConversationId(null);
+      setSelectedConversationId(urlConversationId);
+      setChatSessionKey(urlConversationId ?? `new-${crypto.randomUUID()}`);
+    });
+  }, [createdConversationId, urlConversationId]);
 
-  useQuery({
-    queryKey: ["workspace", workspaceId],
-    queryFn: () => getWorkspaceById(workspaceId),
-    enabled: !!session,
-  });
-  const conversationsQuery = useQuery({
-    queryKey: ["conversations", workspaceId],
-    queryFn: () => listConversations(workspaceId),
-    enabled: !!session,
-    retry: retryNotFound,
-    retryDelay: retryNotFoundDelay,
-  });
   const conversationQuery = useQuery({
     queryKey: ["conversation", workspaceId, selectedConversationId],
     queryFn: () => {
@@ -468,6 +637,11 @@ export function WorkspaceConversation({
     if (conversationId) {
       setCreatedConversationId(conversationId);
       setSelectedConversationId(conversationId);
+      lastSyncedUrlConversationId.current = conversationId;
+      router.replace(
+        `/dashboard/workspaces/${workspaceId}?c=${encodeURIComponent(conversationId)}`,
+        { scroll: false }
+      );
     }
 
     await queryClient.invalidateQueries({
@@ -482,125 +656,43 @@ export function WorkspaceConversation({
     });
   };
 
-  const startNewConversation = () => {
-    setSelectedConversationId(null);
-    setCreatedConversationId(null);
-    setChatSessionKey(`new-${crypto.randomUUID()}`);
-  };
-
-  const selectConversation = (conversationId: string) => {
-    setCreatedConversationId(null);
-    setSelectedConversationId(conversationId);
-    setChatSessionKey(conversationId);
-  };
-
-  const conversations = conversationsQuery.data ?? [];
-  const selectedConversationTitle =
-    conversations.find(
-      (conversation) => conversation.id === selectedConversationId
-    )?.title ?? "New conversation";
+  const sources = sourcesQuery.data ?? [];
+  const hasReadySources = sources.some((source) => source.status === "ready");
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-      <DashboardTopbar
-        user={session?.user}
-        onToggleSidebar={() => setSourcesSidebarOpen((open) => !open)}
-      />
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {sourcesSidebarOpen && (
-          <WorkspaceSourcesSidebar
-            workspaceId={workspaceId}
-            enabled={!!session}
-            conversations={conversations}
-            conversationsLoading={conversationsQuery.isLoading}
-            conversationsError={
-              conversationsQuery.isError ? conversationsQuery.error : null
-            }
-            selectedConversationId={selectedConversationId}
-            onSelectConversation={selectConversation}
-            onStartNewConversation={startNewConversation}
-          />
-        )}
-
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background/70 px-4 py-2.5 sm:px-6">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Chat
-              </p>
-              <p className="truncate text-sm font-medium">
-                {selectedConversationTitle}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                variant="outline"
-                onClick={() => setAddMemoryOpen(true)}
-                className="h-9 rounded-lg border-border bg-card/70 px-2.5 sm:px-3"
-              >
-                <Plus className="mr-1 h-4 w-4" />
-                <span className="hidden sm:inline">Add memory</span>
-                <span className="sm:hidden">Memory</span>
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setMemoriesOpen(true)}
-                className="h-9 rounded-lg px-2.5 text-muted-foreground hover:text-foreground sm:px-3"
-              >
-                Memories
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setStudioOpen(true)}
-                className="h-9 rounded-lg border-border bg-card/70 px-2.5 sm:px-3 lg:hidden"
-              >
-                <Sparkles className="mr-1 h-4 w-4 text-primary" aria-hidden="true" />
-                Studio
-              </Button>
-            </div>
-          </header>
-
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-5 sm:py-4 lg:px-8">
-            {!selectedConversationReady ? (
-              conversationQuery.isError ? (
-                <Card className="border-red-500/20 bg-red-500/5 p-4 text-sm text-red-200">
-                  {getErrorMessage(conversationQuery.error)}
-                </Card>
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  Loading conversation...
-                </p>
-              )
-            ) : (
-              <StreamingChat
-                key={chatSessionKey}
-                workspaceId={workspaceId}
-                conversationId={selectedConversationId}
-                chatId={chatSessionKey}
-                initialMessages={initialMessages}
-                onFinishMessage={handleFinishMessage}
-              />
-            )}
-          </section>
-        </main>
-
-        <aside className="hidden w-72 shrink-0 border-l border-border bg-card/30 lg:flex xl:w-96">
-          <StudyStudioPanel workspaceId={workspaceId} enabled={!!session} />
-        </aside>
-      </div>
-
-      {studioOpen && (
-        <div className="fixed inset-0 z-50 flex bg-background lg:hidden">
-          <StudyStudioPanel
-            workspaceId={workspaceId}
-            enabled={!!session}
-            onClose={() => setStudioOpen(false)}
-            className="border-l-0"
-          />
-        </div>
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {!selectedConversationReady ? (
+        conversationQuery.isError ? (
+          <Card className="m-6 border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
+            {getErrorMessage(conversationQuery.error)}
+          </Card>
+        ) : (
+          <p className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+            Loading conversation...
+          </p>
+        )
+      ) : (
+        <StreamingChat
+          key={chatSessionKey}
+          workspaceId={workspaceId}
+          conversationId={selectedConversationId}
+          chatId={chatSessionKey}
+          initialMessages={initialMessages}
+          onFinishMessage={handleFinishMessage}
+          hasReadySources={hasReadySources}
+          sourceError={
+            sourcesQuery.isError ? getErrorMessage(sourcesQuery.error) : null
+          }
+          onAddSource={() => setAddSourceOpen(true)}
+          onAddMemory={() => setAddMemoryOpen(true)}
+        />
       )}
       <AddMemoryDialog open={addMemoryOpen} onOpenChange={setAddMemoryOpen} />
-      <MemoriesDialog open={memoriesOpen} onOpenChange={setMemoriesOpen} />
-    </div>
+      <AddSourceDialog
+        open={addSourceOpen}
+        onOpenChange={setAddSourceOpen}
+        workspaceId={workspaceId}
+      />
+    </main>
   );
 }

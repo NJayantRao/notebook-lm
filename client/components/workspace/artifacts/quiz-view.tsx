@@ -28,6 +28,7 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<QuizAttempt | null>(null);
   const [retaking, setRetaking] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const questions = useMemo(
     () => (content.kind === "quiz" ? content.questions : []),
@@ -40,6 +41,7 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
     return null;
   }
 
+  const currentQuestion = questions[currentIndex];
   const allAnswered = questions.every(
     (question) => Boolean(answers[question.id]?.trim())
   );
@@ -64,13 +66,13 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
   if (visibleResult) {
     return (
       <div className="space-y-4">
-        <header className="flex items-start justify-between gap-2 border-b border-border pb-3">
+        <header className="flex items-start justify-between gap-2 border-b border-border pb-4">
           <div>
-            <h3 className="flex items-center gap-2 text-base font-semibold">
-              <CircleHelp className="h-4 w-4 text-primary" aria-hidden="true" />
+            <h3 className="flex items-center gap-2 font-heading text-3xl">
+              <CircleHelp className="size-5 text-primary" aria-hidden="true" />
               {content.title} · results
             </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground">
               You scored {visibleResult.score} of {visibleResult.totalQuestions}
             </p>
           </div>
@@ -83,6 +85,7 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
               setResult(null);
               setRetaking(true);
               setAnswers({});
+              setCurrentIndex(0);
             }}
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -110,14 +113,34 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
                       {question.questionText}
                     </p>
                   </div>
+                  {attempts && attempts.length > 0 && (
+                    <section className="border-t border-border pt-5">
+                      <h4 className="font-heading text-xl">Previous attempts</h4>
+                      <ul className="mt-2 space-y-2">
+                        {attempts.map((attempt) => (
+                          <li
+                            key={attempt.id}
+                            className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                          >
+                            <span className="text-muted-foreground">
+                              {new Date(attempt.createdAt).toLocaleDateString()}
+                            </span>
+                            <span className="font-medium">
+                              {attempt.score} / {attempt.totalQuestions}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
                   {isCorrect ? (
                     <CheckCircle2
-                      className="h-4 w-4 shrink-0 text-emerald-500"
+                      className="size-4 shrink-0 text-success"
                       aria-label="Correct"
                     />
                   ) : (
                     <XCircle
-                      className="h-4 w-4 shrink-0 text-rose-500"
+                      className="size-4 shrink-0 text-destructive"
                       aria-label="Incorrect"
                     />
                   )}
@@ -127,7 +150,7 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
                   {gradedAnswer?.userAnswer || "(no answer)"}
                 </p>
                 {!isCorrect && gradedAnswer?.correctAnswer && (
-                  <p className="mt-1 rounded-lg bg-emerald-500/10 p-2 text-[11px] text-emerald-700 dark:text-emerald-300">
+                  <p className="mt-1 rounded-lg bg-success/10 p-2 text-[11px] text-success">
                     <span className="font-semibold">Expected: </span>
                     {gradedAnswer.correctAnswer}
                   </p>
@@ -163,47 +186,68 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
   }
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1 border-b border-border pb-3">
-        <h3 className="flex items-center gap-2 text-base font-semibold">
-          <CircleHelp className="h-4 w-4 text-primary" aria-hidden="true" />
+    <div className="mx-auto w-full max-w-3xl space-y-6 py-8">
+      <header className="space-y-2 border-b border-border pb-4">
+        <h3 className="flex items-center gap-2 font-heading text-3xl">
+          <CircleHelp className="size-5 text-primary" aria-hidden="true" />
           {content.title}
         </h3>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {questions.length} questions · answers are revealed after submission
         </p>
       </header>
 
-      <ol className="space-y-4">
-        {questions.map((question, index) => (
-          <li key={question.id} className="rounded-xl border border-border bg-card p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Question {index + 1} · {QUESTION_TYPES[question.type]}
-            </p>
-            <p className="mt-1 text-xs font-medium">{question.questionText}</p>
+      <div>
+        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+          <span>Question {currentIndex + 1} of {questions.length}</span>
+          <span>{Math.round(((currentIndex + 1) / questions.length) * 100)}%</span>
+        </div>
+        <div
+          className="h-1.5 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-valuenow={currentIndex + 1}
+          aria-valuemin={1}
+          aria-valuemax={questions.length}
+          aria-label="Quiz progress"
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-[width]"
+            style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+          />
+        </div>
+      </div>
 
-            {question.type === "short_answer" ? (
+      {currentQuestion && (
+        <article className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Question {currentIndex + 1} · {QUESTION_TYPES[currentQuestion.type]}
+            </p>
+            <p className="mt-3 font-heading text-2xl leading-snug">
+              {currentQuestion.questionText}
+            </p>
+
+            {currentQuestion.type === "short_answer" ? (
               <Textarea
-                value={answers[question.id] ?? ""}
+                value={answers[currentQuestion.id] ?? ""}
                 onChange={(event) =>
                   setAnswers((current) => ({
                     ...current,
-                    [question.id]: event.target.value,
+                    [currentQuestion.id]: event.target.value,
                   }))
                 }
                 rows={3}
                 maxLength={4000}
                 placeholder="Type your answer"
-                aria-label={`Answer for question ${index + 1}`}
-                className="mt-3 text-xs"
+                aria-label={`Answer for question ${currentIndex + 1}`}
+                className="mt-5 text-sm"
               />
             ) : (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(question.type === "true_false"
+              <div className="mt-5 grid gap-2">
+                {(currentQuestion.type === "true_false"
                   ? ["true", "false"]
-                  : question.options
+                  : currentQuestion.options
                 ).map((option) => {
-                  const selected = answers[question.id] === option;
+                  const selected = answers[currentQuestion.id] === option;
                   return (
                     <button
                       key={option}
@@ -212,11 +256,11 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
                       onClick={() =>
                         setAnswers((current) => ({
                           ...current,
-                          [question.id]: option,
+                          [currentQuestion.id]: option,
                         }))
                       }
                       className={cn(
-                        "rounded-lg border px-2.5 py-1.5 text-left text-[11px] transition-colors",
+                        "rounded-xl border px-4 py-3 text-left text-sm transition-colors",
                         selected
                           ? "border-primary/50 bg-primary/10 text-foreground"
                           : "border-border bg-background text-muted-foreground hover:text-foreground"
@@ -230,7 +274,7 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
             )}
 
             <div className="mt-2 flex flex-wrap gap-1">
-              {question.citations.map((citation) => (
+              {currentQuestion.citations.map((citation) => (
                 <CitationChip
                   key={citation.label}
                   label={citation.label}
@@ -241,23 +285,49 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
                 />
               ))}
             </div>
-          </li>
-        ))}
-      </ol>
+        </article>
+      )}
 
       {submitAttempt.isError && (
-        <p role="alert" className="text-xs text-rose-400">
+        <p role="alert" className="text-sm text-destructive">
           {getErrorMessage(submitAttempt.error)}
         </p>
       )}
-      <Button
-        type="button"
-        onClick={() => void submit()}
-        disabled={!allAnswered || submitAttempt.isPending}
-        className="w-full text-xs"
-      >
-        {submitAttempt.isPending ? "Grading answers…" : "Submit answers"}
-      </Button>
+      <div className="flex items-center justify-between gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={currentIndex === 0 || submitAttempt.isPending}
+          onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+        >
+          Previous
+        </Button>
+        {currentIndex < questions.length - 1 ? (
+          <Button
+            type="button"
+            disabled={
+              !currentQuestion ||
+              !answers[currentQuestion.id]?.trim() ||
+              submitAttempt.isPending
+            }
+            onClick={() =>
+              setCurrentIndex((index) =>
+                Math.min(questions.length - 1, index + 1)
+              )
+            }
+          >
+            Next
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            onClick={() => void submit()}
+            disabled={!allAnswered || submitAttempt.isPending}
+          >
+            {submitAttempt.isPending ? "Grading answers…" : "Submit answers"}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

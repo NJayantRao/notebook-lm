@@ -86,7 +86,7 @@ export function AddMemoryDialog({
           {error && (
             <p
               role="alert"
-              className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200"
+              className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
               {error}
             </p>
@@ -98,14 +98,13 @@ export function AddMemoryDialog({
               variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={mutation.isPending}
-              className="border-white/10 bg-transparent hover:bg-white/[0.05]"
+              className="border-border bg-transparent hover:bg-muted"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={!content.trim() || mutation.isPending}
-              className="bg-foreground text-background hover:bg-foreground/90"
             >
               {mutation.isPending ? (
                 <>

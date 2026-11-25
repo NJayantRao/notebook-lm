@@ -53,7 +53,7 @@ const MAX_PDF_SIZE_BYTES = 25 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 500_000;
 
 const inputClass =
-  "h-10 rounded-lg border-white/10 bg-white/[0.03] focus-visible:ring-primary/30";
+  "h-10 rounded-lg border-input bg-background focus-visible:ring-primary/30";
 
 export function AddSourceDialog({
   open,
@@ -222,7 +222,7 @@ export function AddSourceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto border-white/10 bg-[#1f1e1c] text-foreground sm:max-w-3xl">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto border-border bg-popover text-foreground sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
             <FileUp className="h-4 w-4 text-primary" />
@@ -236,7 +236,7 @@ export function AddSourceDialog({
         <div
           role="tablist"
           aria-label="Source type"
-          className="grid grid-cols-5 gap-1 rounded-xl border border-white/10 bg-background/40 p-1"
+          className="grid grid-cols-5 gap-1 rounded-xl border border-border bg-muted/40 p-1"
         >
           {SOURCE_OPTIONS.map(({ type, label, icon: Icon }) => (
             <button
@@ -248,11 +248,11 @@ export function AddSourceDialog({
               onClick={() => selectSourceType(type)}
               className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-medium transition-colors disabled:opacity-50 ${
                 sourceType === type
-                  ? "bg-white/[0.06] text-foreground ring-1 ring-white/10"
-                  : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                  ? "bg-background text-foreground ring-1 ring-border"
+                  : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
               }`}
             >
-              <Icon className="h-4 w-4 text-[#c75a25]" />
+              <Icon className="h-4 w-4 text-primary" />
               <span>{label}</span>
             </button>
           ))}
@@ -330,12 +330,12 @@ export function AddSourceDialog({
                   htmlFor="source-file"
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleFileDrop}
-                  className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-white/20 bg-white/[0.02] px-4 py-6 text-center transition-colors hover:border-white/35 hover:bg-white/[0.04] focus-within:ring-2 focus-within:ring-ring/40"
+                  className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center transition-colors hover:border-primary/40 hover:bg-muted/50 focus-within:ring-2 focus-within:ring-ring/40"
                 >
                   <UploadCloud className="mb-3 h-8 w-8 text-muted-foreground" />
                   <p className="text-sm font-medium">
                     Drag and drop or{" "}
-                    <span className="text-[#c75a25]">browse your file</span>
+                    <span className="text-primary">browse your file</span>
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {sourceType === "pdf"
@@ -367,7 +367,7 @@ export function AddSourceDialog({
                     disabled={mutation.isPending}
                     required={!file}
                     maxLength={MAX_TEXT_LENGTH}
-                    className="min-h-36 resize-y rounded-lg border-white/10 bg-white/[0.03]"
+                    className="min-h-36 resize-y rounded-lg border-input bg-background"
                   />
                 </div>
               )}
@@ -377,7 +377,7 @@ export function AddSourceDialog({
           {error && (
             <p
               role="alert"
-              className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200"
+              className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
               {error}
             </p>
@@ -389,14 +389,13 @@ export function AddSourceDialog({
               variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={mutation.isPending}
-              className="border-white/10 bg-transparent hover:bg-white/[0.05]"
+              className="border-border bg-transparent hover:bg-muted"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={mutation.isPending}
-              className="bg-foreground text-background hover:bg-foreground/90"
             >
               {mutation.isPending ? (
                 <>

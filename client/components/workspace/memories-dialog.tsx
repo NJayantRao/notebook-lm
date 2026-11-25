@@ -99,13 +99,13 @@ export function MemoriesDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <p className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-200/90">
+          <p className="rounded-xl border border-warning/20 bg-warning/10 px-3 py-2 text-xs text-warning">
             Memories are stored with a third-party service (Mem0), not in this
             app&apos;s database.
           </p>
 
           {error && (
-            <p role="alert" className="text-sm text-red-300">
+            <p role="alert" className="text-sm text-destructive">
               {error}
             </p>
           )}
@@ -115,7 +115,7 @@ export function MemoriesDialog({
               Loading memories...
             </p>
           ) : memoriesQuery.isError ? (
-            <p className="py-6 text-center text-sm text-red-300">
+            <p className="py-6 text-center text-sm text-destructive">
               {getErrorMessage(memoriesQuery.error)}
             </p>
           ) : memories.length === 0 ? (
@@ -127,7 +127,7 @@ export function MemoriesDialog({
               {memories.map((memory) => (
                 <div
                   key={memory.id}
-                  className="rounded-xl border border-white/10 bg-white/[0.02] p-3"
+                  className="rounded-xl border border-border bg-muted/20 p-3"
                 >
                   {editingId === memory.id ? (
                     <div className="space-y-2">
@@ -194,7 +194,7 @@ export function MemoriesDialog({
                         title="Delete memory"
                         onClick={() => setDeletingId(memory.id)}
                       >
-                        <Trash2 className="h-3.5 w-3.5 text-red-300" />
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
                   )}
@@ -220,11 +220,11 @@ export function MemoriesDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/10 bg-transparent">
+            <AlertDialogCancel             className="border-border bg-transparent">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-500/80 hover:bg-red-500"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteMutation.isPending}
               onClick={() => {
                 if (deletingId) deleteMutation.mutate(deletingId);
