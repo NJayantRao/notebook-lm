@@ -16,6 +16,17 @@ import {
   type ArtifactContext,
 } from "./artifact-context.service.js";
 import {
+  countPodcastWords,
+  PODCAST_MAX_WORDS,
+  PODCAST_TARGET_WORDS,
+  PodcastRepairError,
+  PodcastTooLongError,
+} from "./podcast-limits.js";
+import {
+  shortenPodcastScript,
+  type PodcastScriptInput,
+} from "./podcast-script.service.js";
+import {
   flashcards,
   mindmap,
   podcast,
@@ -247,8 +258,36 @@ export const generateArtifactContent = async (
       if (!generated.output) {
         throw new Error("ARTIFACT_EMPTY_OUTPUT");
       }
-      const raw = schema.parse(generated.output);
-      const content = definition.normalize({ raw, input, context });
+      let raw: unknown = schema.parse(generated.output);
+      let content = definition.normalize({ raw, input, context });
+
+      if (type === "podcast") {
+        const script = raw as PodcastScriptInput;
+        const words = countPodcastWords(script.turns);
+        logger.info("podcast.script.counted", {
+          words,
+          maxWords: PODCAST_MAX_WORDS,
+          targetWords: PODCAST_TARGET_WORDS,
+          turns: script.turns.length,
+        });
+        if (words > PODCAST_MAX_WORDS) {
+          const shortened = await shortenPodcastScript({
+            script,
+            context,
+            targetWords: PODCAST_TARGET_WORDS,
+            maxWords: PODCAST_MAX_WORDS,
+            reason: `initial script had ${words} words (limit ${PODCAST_MAX_WORDS})`,
+          });
+          raw = shortened.raw;
+          content = shortened.content;
+          logger.warn("podcast.script.repaired", {
+            fromWords: words,
+            toWords: shortened.words,
+            targetWords: PODCAST_TARGET_WORDS,
+          });
+        }
+      }
+
       const usage = generated.usage as
         | {
             inputTokens?: number;
@@ -280,6 +319,17 @@ export const generateArtifactContent = async (
     } catch (error) {
       const code = failureCode(error);
       const chain = causeChain(error);
+
+      if (error instanceof PodcastTooLongError || error instanceof PodcastRepairError) {
+        logger.error("artifact.generate.failed", {
+          ...meta,
+          attempt,
+          code: error.code,
+          causeChain: chain,
+          error,
+        });
+        throw error;
+      }
 
       if (isInvalidSchemaError(error)) {
         logger.error("artifact.generate.invalid_schema", {

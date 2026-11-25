@@ -155,10 +155,11 @@ const loadPodcastTurns = async (
   return { workspaceId: record.workspaceId, turns: record.content.turns };
 };
 
+/** Installed @google/genai SpeechMetadata.style supports pace instructions. */
+const SPEECH_PACE = "Read at a lively, natural, slightly brisk pace";
+
 const speakerStyle = (speaker: PodcastSpeaker): string =>
-  speaker === "Alex"
-    ? "curious, friendly, conversational"
-    : "calm, analytical, explanatory";
+  `${speaker === "Alex" ? "curious, friendly, conversational" : "calm, analytical, explanatory"}; ${SPEECH_PACE}`;
 
 const synthesizePcm = async (
   segment: PodcastSegment,
@@ -336,6 +337,16 @@ const deleteParts = async (partKeys: string[]): Promise<void> => {
       });
       throw error;
     }
+  }
+};
+
+/** Removes uploaded parts and/or a joined audio object before a rescue run. */
+export const deletePodcastAudioObjects = async (
+  keys: Array<string | null | undefined>
+): Promise<void> => {
+  const unique = [...new Set(keys.filter((key): key is string => Boolean(key)))];
+  if (unique.length > 0) {
+    await deleteParts(unique);
   }
 };
 

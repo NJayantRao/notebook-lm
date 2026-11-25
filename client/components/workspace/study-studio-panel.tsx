@@ -70,7 +70,7 @@ const TOOLS: Tool[] = [
   {
     type: "podcast",
     title: "Podcast",
-    description: "A two-host audio discussion.",
+    description: "Two-host audio overview, up to 5 minutes",
     icon: Headphones,
   },
   {
@@ -237,8 +237,11 @@ function ArtifactDetail({
             <p className="text-xs font-medium text-rose-500">
               Generation failed
             </p>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              {artifact.errorMessage ?? "An unknown error occurred."}
+            <p role="alert" className="text-[11px] leading-relaxed text-muted-foreground">
+              {artifact.type === "podcast" &&
+              artifact.errorMessage?.includes("PODCAST_TOO_LONG")
+                ? "The podcast came out too long. Try again."
+                : (artifact.errorMessage ?? "An unknown error occurred.")}
             </p>
             <Button
               type="button"
@@ -248,7 +251,10 @@ function ArtifactDetail({
               onClick={() => retry.mutate(artifact.id)}
               className="h-7 text-[11px]"
             >
-              Retry generation
+              {artifact.type === "podcast" &&
+              artifact.errorMessage?.includes("PODCAST_TOO_LONG")
+                ? "Retry"
+                : "Retry generation"}
             </Button>
           </div>
         )}
@@ -482,6 +488,11 @@ export function StudyStudioPanel({
                 <p className="mt-1 flex-1 text-[11px] leading-relaxed text-muted-foreground">
                   {description}
                 </p>
+                {type === "podcast" && (
+                  <span className="mt-1 w-fit rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                    Up to 5 min
+                  </span>
+                )}
 
                 {latest && (
                   <button

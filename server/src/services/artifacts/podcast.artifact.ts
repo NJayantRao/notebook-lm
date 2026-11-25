@@ -1,9 +1,12 @@
 import { z } from "zod";
 
 import { resolveCitation } from "../artifact-context.service.js";
+import {
+  PODCAST_MAX_WORDS,
+  PODCAST_TARGET_WORDS,
+} from "../podcast-limits.js";
 import type { ArtifactContent, PodcastTurn } from "../../types/artifact.js";
 import {
-  countWords,
   logDroppedCitations,
   SHARED_ARTIFACT_RULES,
   type ArtifactDefinition,
@@ -28,23 +31,9 @@ export const buildSchema = (validLabels: SourceLabels) =>
             .strict()
         )
         .min(8)
-        .max(24),
+        .max(12),
     })
-    .strict()
-    .superRefine((value, ctx) => {
-      const alex = value.turns
-        .filter((turn) => turn.speaker === "Alex")
-        .reduce((sum, turn) => sum + countWords(turn.text), 0);
-      const sam = value.turns
-        .filter((turn) => turn.speaker === "Sam")
-        .reduce((sum, turn) => sum + countWords(turn.text), 0);
-      if (alex < 450 || sam < 900) {
-        ctx.addIssue({
-          code: "custom",
-          message: "PODCAST_WORD_COUNT_TOO_LOW",
-        });
-      }
-    });
+    .strict();
 
 export type PodcastRaw = z.infer<ReturnType<typeof buildSchema>>;
 
@@ -55,7 +44,9 @@ export const buildPrompt = ({
 }: BuildPromptArgs): string =>
   `Write a two-host study podcast script from the source context below.\n` +
   `Host Alex is curious and introduces topics; Host Sam is analytical and explains details. Use exactly the speaker names Alex and Sam.\n` +
-  `Target about 700 words spoken by Alex and about 1400 words spoken by Sam, across 8 to 16 natural turns. Every turn needs one sourceRef from the valid labels and an estimated startSec in seconds.\n` +
+  `Budget: about ${PODCAST_TARGET_WORDS} words in total across all turns, never more than ${PODCAST_MAX_WORDS}; this is a spoken episode of about 4 to 5 minutes.\n` +
+  `Use 8 to 12 turns of 1 to 3 short sentences each. Cover only the 2 to 4 most important ideas. No filler or repeated points. Start with a 1-sentence hook and end with a 1-sentence recap. Output spoken words only: no stage directions, no speaker labels inside the text, no headings, no markdown.\n` +
+  `Every turn needs one sourceRef from the valid labels and an estimated startSec in seconds.\n` +
   `${SHARED_ARTIFACT_RULES}\n` +
   `Valid labels: ${validLabels.join(", ")}\n` +
   `Optional focus: ${input.params.focus?.trim() || "none"}\n\n` +

@@ -101,6 +101,16 @@ export type ArtifactAudioMeta = {
   sampleRate: number;
 };
 
+export type PodcastContent = {
+  kind: "podcast";
+  title: string;
+  turns: PodcastTurn[];
+  words?: number;
+  durationSec?: number;
+  wordsPerMinute?: number;
+  audioRescueUsed?: boolean;
+};
+
 export type ArtifactContent =
   | { kind: "empty" }
   | {
@@ -115,11 +125,7 @@ export type ArtifactContent =
       nodes: MindMapNode[];
       edges: MindMapEdge[];
     }
-  | {
-      kind: "podcast";
-      title: string;
-      turns: PodcastTurn[];
-    }
+  | PodcastContent
   | {
       kind: "quiz";
       title: string;
@@ -192,6 +198,8 @@ export type CreateArtifactInput = {
   focus?: string;
   cardCount?: number;
   questionCount?: number;
+  /** Legacy clients may send this; the server ignores it. */
+  length?: string;
 };
 
 export type ListArtifactsFilters = {

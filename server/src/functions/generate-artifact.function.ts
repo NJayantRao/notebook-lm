@@ -7,11 +7,9 @@ import artifactsRepository from "../repository/artifacts.repository.js";
 import { buildArtifactContext } from "../services/artifact-context.service.js";
 import { generateArtifactContent } from "../services/artifact-generation.service.js";
 import {
-  finalizePodcastAudio,
-  generatePodcastPart,
-  planPodcastSegments,
-  type PodcastPartResult,
-} from "../services/podcast-audio.service.js";
+  generateAndFinalizePodcastAudio,
+  type PodcastStepRunner,
+} from "../services/podcast-audio-orchestration.service.js";
 import { ARTIFACT_TYPES, type ArtifactInput } from "../types/artifact.js";
 import ApiError, { BadRequestError } from "../utils/api-error.js";
 
@@ -28,6 +26,8 @@ const artifactInputSchema = z
         focus: z.string().max(2000).optional(),
         cardCount: z.number().int().min(5).max(15).optional(),
         questionCount: z.number().int().min(5).max(10).optional(),
+        // Old clients may still send a podcast length; it is ignored.
+        length: z.unknown().optional(),
       })
       .strict(),
   })
@@ -58,6 +58,8 @@ const FAILURE_MESSAGES: Record<string, string> = {
     "The selected sources do not have usable citation labels.",
   SCHEMA_VALIDATION_FAILED:
     "The artifact output did not match the required format.",
+  PODCAST_TOO_LONG: "The podcast came out too long. Try again.",
+  PODCAST_REPAIR_FAILED: "The podcast could not be shortened. Try again.",
   PODCAST_TTS_FAILED: "The podcast audio could not be generated. Please check TTS quota and try again.",
   PODCAST_PARTS_INCOMPLETE: "The podcast audio could not be assembled. Please try again.",
   PODCAST_PART_INVALID: "The podcast audio could not be assembled. Please try again.",
@@ -99,15 +101,22 @@ const parseArtifactInput = (value: unknown): ArtifactInput => {
   };
 };
 
-const errorCode = (error: unknown): string | undefined => {
+const errorCode = (
+  error: unknown,
+  seen: Set<object> = new Set()
+): string | undefined => {
+  if (error === null || typeof error !== "object" || seen.has(error)) {
+    return undefined;
+  }
+  seen.add(error);
   if (error instanceof ApiError) {
     return error.code;
   }
-  if (typeof error === "object" && error !== null && "code" in error) {
-    const value = (error as { code?: unknown }).code;
-    return typeof value === "string" ? value : undefined;
+  const value = (error as { code?: unknown }).code;
+  if (typeof value === "string") {
+    return value;
   }
-  return undefined;
+  return errorCode((error as { cause?: unknown }).cause, seen);
 };
 
 const mapFailure = (error: unknown): { code: string; message: string } => {
@@ -271,49 +280,15 @@ export const generateArtifactFunction = inngest.createFunction(
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens,
         attempts: result.attempts,
-        segmentCount:
-          result.content.kind === "podcast"
-            ? planPodcastSegments(result.content.turns).length
-            : 0,
       };
     });
 
     if (loaded.type === "podcast") {
-      const parts: PodcastPartResult[] = [];
-      for (let partIndex = 0; partIndex < generated.segmentCount; partIndex += 1) {
-        const part = await step.run(`podcast-tts-part-${partIndex}`, () =>
-          generatePodcastPart(loaded.workspaceId, artifactId, partIndex)
-        );
-        parts.push(part);
-      }
-
-      await step.run("finalize-podcast-audio", async () => {
-        const finalized = await finalizePodcastAudio(
-          loaded.workspaceId,
-          artifactId,
-          parts
-        );
-        const record = await artifactsRepository.findArtifactById(artifactId);
-        if (!record || record.content.kind !== "podcast") {
-          throw new NonRetriableError("The podcast artifact is unavailable.");
-        }
-        await artifactsRepository.updateArtifact(artifactId, {
-          content: {
-            kind: "podcast",
-            title: record.content.title,
-            turns: finalized.turns,
-          },
-          audioKey: finalized.audioKey,
-          audioMeta: finalized.audioMeta,
-          durationSec: finalized.durationSec,
-        });
-        return {
-          mimeType: finalized.audioMeta.mimeType,
-          size: finalized.audioMeta.size,
-          durationSec: finalized.durationSec,
-          turnCount: finalized.turns.length,
-          partCount: parts.length,
-        };
+      await generateAndFinalizePodcastAudio({
+        workspaceId: loaded.workspaceId,
+        artifactId,
+        context,
+        runStep: ((id, fn) => step.run(id, fn)) as PodcastStepRunner,
       });
     }
 

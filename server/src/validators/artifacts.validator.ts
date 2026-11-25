@@ -17,6 +17,8 @@ export const createArtifactSchema = z
     focus: z.string().trim().max(2000).optional(),
     cardCount: z.number().int().min(5).max(15).optional(),
     questionCount: z.number().int().min(5).max(10).optional(),
+    // Accepted for backwards compatibility with older clients; never stored.
+    length: z.unknown().optional(),
   })
   .strict();
 

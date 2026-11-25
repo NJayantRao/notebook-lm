@@ -128,6 +128,18 @@ export type FlashcardDraft = {
   citation: ArtifactCitation;
 };
 
+export type PodcastContent = {
+  kind: "podcast";
+  title: string;
+  turns: PodcastTurn[];
+  /** Filled after audio is finalized; optional for older artifacts. */
+  words?: number;
+  durationSec?: number;
+  wordsPerMinute?: number;
+  /** A length rescue may run only once per artifact. */
+  audioRescueUsed?: boolean;
+};
+
 export type ArtifactContent =
   | { kind: "empty" }
   | {
@@ -142,11 +154,7 @@ export type ArtifactContent =
       nodes: MindMapNode[];
       edges: MindMapEdge[];
     }
-  | {
-      kind: "podcast";
-      title: string;
-      turns: PodcastTurn[];
-    }
+  | PodcastContent
   | {
       kind: "quiz";
       title: string;

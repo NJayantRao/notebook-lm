@@ -54,6 +54,15 @@ const envSchema = z.object({
     (value) => (value === "" || value === undefined ? undefined : value),
     z.coerce.number().int().positive().default(3)
   ),
+  // Hard cap: a configured value above 300 is rejected instead of silently used.
+  PODCAST_MAX_SECONDS: z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    z.coerce.number().int().positive().max(300).default(300)
+  ),
+  PODCAST_WORDS_PER_MINUTE: z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    z.coerce.number().int().positive().max(400).default(125)
+  ),
   AUDIO_URL_TTL_SECONDS: z.preprocess(
     (value) => (value === "" || value === undefined ? undefined : value),
     z.coerce.number().int().min(60).default(3600)

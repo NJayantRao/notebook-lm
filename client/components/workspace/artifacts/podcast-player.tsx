@@ -14,7 +14,9 @@ import type { Artifact } from "@/lib/artifact-types";
 export function PodcastPlayer({ artifact }: { artifact: Artifact }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState<number | null>(null);
   const content = artifact.content;
+  const realDuration = audioDuration ?? artifact.durationSec ?? 0;
 
   const turns = useMemo(
     () => (content.kind === "podcast" ? content.turns : []),
@@ -50,23 +52,32 @@ export function PodcastPlayer({ artifact }: { artifact: Artifact }) {
         </h3>
         <p className="text-[11px] text-muted-foreground">
           Alex and Sam · {turns.length} turns
-          {artifact.durationSec
-            ? ` · ${formatClipTime(artifact.durationSec)}`
-            : ""}
+          {realDuration > 0 ? ` · ${formatClipTime(realDuration)}` : ""}
         </p>
       </header>
 
       {artifact.audioUrl ? (
         <div className="rounded-xl border border-border bg-card p-3">
-          <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <Volume2 className="h-4 w-4 text-primary" aria-hidden="true" />
-            Generated narration
+          <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <Volume2 className="h-4 w-4 text-primary" aria-hidden="true" />
+              Generated narration
+            </span>
+            <span className="tabular-nums">
+              {formatClipTime(currentTime)} / {formatClipTime(realDuration)}
+            </span>
           </div>
           <audio
             ref={audioRef}
             controls
             preload="metadata"
             src={artifact.audioUrl}
+            onLoadedMetadata={(event) => {
+              const duration = event.currentTarget.duration;
+              if (Number.isFinite(duration) && duration > 0) {
+                setAudioDuration(Math.round(duration));
+              }
+            }}
             onTimeUpdate={(event) =>
               setCurrentTime(event.currentTarget.currentTime)
             }
