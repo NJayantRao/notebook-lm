@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Headphones, Pause, Play, Volume2 } from "lucide-react";
+import {
+  Download,
+  Headphones,
+  LoaderCircle,
+  Pause,
+  Play,
+  Volume2,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +19,8 @@ import {
 import { cn } from "@/lib/utils";
 import type { Artifact } from "@/lib/artifact-types";
 import { artifactKeys } from "@/hooks/use-artifacts";
+import { getPodcastAudioDownloadUrl } from "@/services/artifact.service";
+import { getErrorMessage } from "@/lib/api";
 
 export function PodcastPlayer({ artifact }: { artifact: Artifact }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -23,6 +32,8 @@ export function PodcastPlayer({ artifact }: { artifact: Artifact }) {
   const [speed, setSpeed] = useState(1);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [refreshingAudio, setRefreshingAudio] = useState(false);
+  const [downloadingAudio, setDownloadingAudio] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const content = artifact.content;
   const realDuration = audioDuration ?? artifact.durationSec ?? 0;
 
@@ -98,6 +109,23 @@ export function PodcastPlayer({ artifact }: { artifact: Artifact }) {
       });
   };
 
+  const downloadAudio = async () => {
+    if (downloadingAudio) return;
+    setDownloadingAudio(true);
+    setDownloadError(null);
+    try {
+      const downloadUrl = await getPodcastAudioDownloadUrl(
+        artifact.workspaceId,
+        artifact.id
+      );
+      window.location.assign(downloadUrl);
+    } catch (error) {
+      setDownloadError(getErrorMessage(error));
+    } finally {
+      setDownloadingAudio(false);
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-8 py-8">
       <header className="space-y-1 border-b border-border pb-3">
@@ -137,14 +165,30 @@ export function PodcastPlayer({ artifact }: { artifact: Artifact }) {
             className="sr-only"
             aria-label={`Audio for ${content.title}`}
           />
-          <div className="mb-5 flex items-center justify-between gap-3 text-sm text-muted-foreground">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
             <span className="flex items-center gap-2">
               <Volume2 className="size-4 text-primary" aria-hidden="true" />
               Generated narration
             </span>
-            <span className="tabular-nums">
-              {formatClipTime(currentTime)} / {formatClipTime(realDuration)}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="tabular-nums">
+                {formatClipTime(currentTime)} / {formatClipTime(realDuration)}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void downloadAudio()}
+                disabled={downloadingAudio}
+              >
+                {downloadingAudio ? (
+                  <LoaderCircle className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download aria-hidden="true" />
+                )}
+                Download
+              </Button>
+            </div>
           </div>
           <input
             type="range"
@@ -205,6 +249,11 @@ export function PodcastPlayer({ artifact }: { artifact: Artifact }) {
                 </Button>
               )}
             </div>
+          )}
+          {downloadError && (
+            <p role="alert" className="mt-3 text-center text-xs text-destructive">
+              Could not download podcast audio: {downloadError}
+            </p>
           )}
         </div>
       ) : (
@@ -271,11 +320,8 @@ export function PodcastPlayer({ artifact }: { artifact: Artifact }) {
                     return (
                       <CitationChip
                         key={label}
-                        label={label}
-                        title={source.title}
-                        url={source.url}
-                        page={source.page}
-                        startSeconds={source.startSeconds}
+                        citation={source}
+                        workspaceId={artifact.workspaceId}
                       />
                     );
                   })}

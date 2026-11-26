@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter, Newsreader } from "next/font/google";
+import { Geist_Mono, Newsreader, Geist } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/providers/theme-provider";
 import QueryProvider from "@/providers/query-provider";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const newsreader = Newsreader({
   subsets: ["latin"],
@@ -36,7 +36,7 @@ export default function RootLayout({
         "antialiased",
         geistMono.variable,
         "font-sans",
-        inter.variable,
+        geist.variable,
         newsreader.variable
       )}
     >

@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getErrorMessage } from "@/lib/api";
+import { cleanTitle } from "@/lib/citation-label";
 import type { SourceListItem, SourceType } from "@/lib/types";
 import { deleteSource, reindexSource } from "@/services/source.service";
 
@@ -80,11 +81,12 @@ export function WorkspaceSourceRow({ source }: { source: SourceListItem }) {
     onError: (cause) => setActionError(getErrorMessage(cause)),
   });
   const actionPending = retryMutation.isPending || deleteMutation.isPending;
+  const title = cleanTitle(source.title);
 
   return (
     <>
       <li
-        title={source.processingError ?? source.title}
+        title={source.processingError ?? title}
         className="rounded-2xl border border-border bg-card px-4 py-3"
       >
         <div className="flex min-w-0 items-center gap-2.5">
@@ -93,7 +95,7 @@ export function WorkspaceSourceRow({ source }: { source: SourceListItem }) {
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-foreground">
-              {source.title}
+              {title}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {SOURCE_LABELS[source.sourceType]}
@@ -107,7 +109,7 @@ export function WorkspaceSourceRow({ source }: { source: SourceListItem }) {
                   variant="ghost"
                   size="icon"
                   className="size-8 shrink-0 text-muted-foreground"
-                  aria-label={`Actions for ${source.title}`}
+                  aria-label={`Actions for ${title}`}
                   disabled={actionPending}
                 />
               }
@@ -118,7 +120,7 @@ export function WorkspaceSourceRow({ source }: { source: SourceListItem }) {
               {source.status === "failed" && (
                 <DropdownMenuItem
                   disabled={actionPending}
-                  onSelect={() => {
+                  onClick={() => {
                     setActionError(null);
                     retryMutation.mutate();
                   }}
@@ -134,7 +136,7 @@ export function WorkspaceSourceRow({ source }: { source: SourceListItem }) {
               <DropdownMenuItem
                 variant="destructive"
                 disabled={actionPending}
-                onSelect={() => {
+                onClick={() => {
                   setActionError(null);
                   setConfirmDelete(true);
                 }}
@@ -174,7 +176,7 @@ export function WorkspaceSourceRow({ source }: { source: SourceListItem }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this source?</AlertDialogTitle>
             <AlertDialogDescription>
-              &quot;{source.title}&quot; and its indexed content will be removed.
+              &quot;{title}&quot; and its indexed content will be removed.
               This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

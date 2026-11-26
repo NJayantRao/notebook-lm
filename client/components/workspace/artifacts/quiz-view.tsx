@@ -169,11 +169,8 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
                   {question.citations.map((citation) => (
                     <CitationChip
                       key={citation.label}
-                      label={citation.label}
-                      title={citation.title}
-                      url={citation.url}
-                      page={citation.page}
-                      startSeconds={citation.startSeconds}
+                      citation={citation}
+                      workspaceId={artifact.workspaceId}
                     />
                   ))}
                 </div>
@@ -277,11 +274,8 @@ export function QuizView({ artifact }: { artifact: Artifact }) {
               {currentQuestion.citations.map((citation) => (
                 <CitationChip
                   key={citation.label}
-                  label={citation.label}
-                  title={citation.title}
-                  url={citation.url}
-                  page={citation.page}
-                  startSeconds={citation.startSeconds}
+                  citation={citation}
+                  workspaceId={artifact.workspaceId}
                 />
               ))}
             </div>

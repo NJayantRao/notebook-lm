@@ -109,8 +109,8 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-8">
-      <header className="space-y-2 border-b border-border pb-3">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-3">
+      <header className="space-y-1.5 border-b border-border pb-2">
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-2 font-heading text-3xl">
@@ -188,7 +188,7 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
           </p>
         </div>
       ) : (
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
           <div>
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span>{studyAll ? "Reviewing all cards" : "Cards due for review"}</span>
@@ -211,7 +211,7 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
           <button
             type="button"
             onClick={() => setRevealed((value) => !value)}
-            className="flex min-h-[min(48dvh,28rem)] w-full flex-col justify-center rounded-3xl border border-border bg-card p-8 text-left transition-colors hover:border-primary/40 sm:p-12"
+            className="flex h-[clamp(260px,52dvh,440px)] w-full flex-col justify-center rounded-3xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/40 sm:p-8"
             aria-label={revealed ? "Hide answer" : "Reveal answer"}
           >
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -219,13 +219,13 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
             </div>
             <p
               className={cn(
-                "mt-8 min-h-28 text-center font-heading text-2xl leading-relaxed sm:text-3xl",
+                "mt-4 max-h-[60%] overflow-y-auto text-center font-heading text-[clamp(1rem,2.2vw,1.65rem)] leading-relaxed",
                 revealed ? "text-foreground" : "font-medium"
               )}
             >
               {revealed ? current.back : current.front}
             </p>
-            <p className="mt-8 text-center text-xs text-muted-foreground">
+            <p className="mt-4 text-center text-xs text-muted-foreground">
               {revealed ? "Tap to hide" : "Tap to reveal"}
             </p>
           </button>
@@ -233,11 +233,8 @@ export function FlashcardView({ artifact }: { artifact: Artifact }) {
           {current.citation && (
             <div className="flex flex-wrap gap-1">
               <CitationChip
-                label={current.citation.label}
-                title={current.citation.title}
-                url={current.citation.url}
-                page={current.citation.page}
-                startSeconds={current.citation.startSeconds}
+                citation={current.citation}
+                workspaceId={artifact.workspaceId}
               />
             </div>
           )}

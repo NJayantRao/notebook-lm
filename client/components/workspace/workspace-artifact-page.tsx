@@ -369,11 +369,18 @@ export function WorkspaceArtifactPage({
           >
             {artifact.content.kind === "mindmap" && (
               <div className="h-full min-h-0">
-                <FullPageMindMap content={artifact.content} fullPage />
+                <FullPageMindMap
+                  content={artifact.content}
+                  workspaceId={artifact.workspaceId}
+                  fullPage
+                />
               </div>
             )}
             {artifact.content.kind === "roadmap" && (
-              <RoadmapView content={artifact.content} />
+              <RoadmapView
+                content={artifact.content}
+                workspaceId={artifact.workspaceId}
+              />
             )}
             {artifact.content.kind === "podcast" && (
               <PodcastPlayer artifact={artifact} />

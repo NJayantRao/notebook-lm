@@ -39,6 +39,18 @@ const getArtifact = async (req: Request, res: Response) => {
     .json(new ApiResponse(200, "Artifact fetched successfully", result));
 };
 
+const getPodcastAudioDownloadUrl = async (req: Request, res: Response) => {
+  const { workspaceId, artifactId } = validate(artifactParamsSchema, req.params);
+  const result = await service.getPodcastAudioDownloadUrl(
+    req.user.id,
+    workspaceId,
+    artifactId
+  );
+  res
+    .status(200)
+    .json(new ApiResponse(200, "Podcast audio download URL created", result));
+};
+
 const deleteArtifact = async (req: Request, res: Response) => {
   const { workspaceId, artifactId } = validate(artifactParamsSchema, req.params);
   const result = await service.deleteArtifact(
@@ -157,6 +169,7 @@ export default {
   createArtifact,
   listArtifacts,
   getArtifact,
+  getPodcastAudioDownloadUrl,
   deleteArtifact,
   retryArtifact,
   submitQuizAttempt,

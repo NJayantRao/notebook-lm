@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getErrorMessage } from "@/lib/api";
+import { cleanTitle } from "@/lib/citation-label";
 import type { SourceListItem, SourceStatus, SourceType } from "@/lib/types";
 import { deleteSource, reindexSource } from "@/services/source.service";
 
@@ -153,7 +154,7 @@ function SourceRow({ source }: { source: SourceListItem }) {
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">
-              {source.title}
+              {cleanTitle(source.title)}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span>{typeLabel(source.sourceType)}</span>
@@ -189,7 +190,7 @@ function SourceRow({ source }: { source: SourceListItem }) {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-muted-foreground"
-                  aria-label={`Actions for ${source.title}`}
+                  aria-label={`Actions for ${cleanTitle(source.title)}`}
                 />
               }
             >
@@ -199,7 +200,7 @@ function SourceRow({ source }: { source: SourceListItem }) {
               {source.status === "failed" && (
                 <DropdownMenuItem
                   disabled={retryMutation.isPending || deleteMutation.isPending}
-                  onSelect={() => {
+                  onClick={() => {
                     setActionError(null);
                     retryMutation.mutate();
                   }}
@@ -211,7 +212,7 @@ function SourceRow({ source }: { source: SourceListItem }) {
               <DropdownMenuItem
                 variant="destructive"
                 disabled={retryMutation.isPending || deleteMutation.isPending}
-                onSelect={() => {
+                onClick={() => {
                   setActionError(null);
                   setConfirmDelete(true);
                 }}
@@ -234,7 +235,7 @@ function SourceRow({ source }: { source: SourceListItem }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this source?</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              &quot;{source.title}&quot; and its indexed content will be removed.
+              &quot;{cleanTitle(source.title)}&quot; and its indexed content will be removed.
               This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

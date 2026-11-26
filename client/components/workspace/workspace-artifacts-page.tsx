@@ -57,6 +57,7 @@ import { useAuthSession } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api";
 import type { Artifact, ArtifactStatus, ArtifactType, CreateArtifactInput } from "@/lib/artifact-types";
 import { cn } from "@/lib/utils";
+import { cleanTitle } from "@/lib/citation-label";
 import { listAllWorkspaceSources } from "@/services/source.service";
 
 type ArtifactTile = {
@@ -216,13 +217,13 @@ function CardActions({
         <MoreHorizontal className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={() => router.push(route)}>
+        <DropdownMenuItem onClick={() => router.push(route)}>
           <Sparkles />
           Open
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={create.isPending}
-          onSelect={regenerate}
+          onClick={regenerate}
         >
           <RefreshCw />
           Regenerate
@@ -230,7 +231,7 @@ function CardActions({
         {artifact.status === "failed" && (
           <DropdownMenuItem
             disabled={retry.isPending}
-            onSelect={() => {
+            onClick={() => {
               onActionError(null);
               retry.mutate(artifact.id, {
                 onError: (error) => onActionError(getErrorMessage(error)),
@@ -244,7 +245,7 @@ function CardActions({
         {artifact.type === "flashcards" && (
           <DropdownMenuItem
             disabled={exportDeck.isPending}
-            onSelect={() =>
+            onClick={() =>
               exportDeck.mutate(
                 {
                   artifactId: artifact.id,
@@ -263,7 +264,7 @@ function CardActions({
         )}
         <DropdownMenuItem
           variant="destructive"
-          onSelect={() => onDelete(artifact)}
+          onClick={() => onDelete(artifact)}
         >
           <Trash2 />
           Delete
@@ -782,7 +783,7 @@ export function WorkspaceArtifactsPage({
                         }
                         className="mt-1 accent-primary"
                       />
-                      <span className="line-clamp-2">{source.title}</span>
+                      <span className="line-clamp-2">{cleanTitle(source.title)}</span>
                     </label>
                   ))}
                 </div>

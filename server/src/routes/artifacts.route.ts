@@ -27,6 +27,10 @@ router.get(
   AsyncHandler(controller.exportFlashcards)
 );
 
+router.get(
+  "/:artifactId/audio/download",
+  AsyncHandler(controller.getPodcastAudioDownloadUrl)
+);
 router.post("/:artifactId/retry", AsyncHandler(controller.retryArtifact));
 router.get("/:artifactId", AsyncHandler(controller.getArtifact));
 router.delete("/:artifactId", AsyncHandler(controller.deleteArtifact));

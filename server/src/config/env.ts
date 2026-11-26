@@ -34,7 +34,6 @@ const envSchema = z.object({
   TAVILY_API_KEY: optionalApiKey,
   MEM0_API_KEY: optionalApiKey,
   OPENAI_API_KEY: optionalApiKey,
-  ANTHROPIC_API_KEY: optionalApiKey,
   GOOGLE_GENERATIVE_AI_API_KEY: optionalApiKey,
   CHAT_MODEL: optionalApiKey,
   ARTIFACT_MODEL_FAST: optionalApiKey,
@@ -61,7 +60,7 @@ const envSchema = z.object({
   ),
   PODCAST_WORDS_PER_MINUTE: z.preprocess(
     (value) => (value === "" || value === undefined ? undefined : value),
-    z.coerce.number().int().positive().max(400).default(125)
+    z.coerce.number().int().positive().max(400).default(115)
   ),
   AUDIO_URL_TTL_SECONDS: z.preprocess(
     (value) => (value === "" || value === undefined ? undefined : value),

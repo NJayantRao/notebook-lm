@@ -68,7 +68,6 @@ const FAILURE_MESSAGES: Record<string, string> = {
   ARTIFACT_AUDIO_DELETE_FAILED: "Temporary audio files could not be cleaned up. Please try again.",
   GOOGLE_NOT_CONFIGURED: "Text-to-speech is not configured on this server.",
   OPENAI_NOT_CONFIGURED: "The artifact model is not configured on this server.",
-  ANTHROPIC_NOT_CONFIGURED: "The artifact model is not configured on this server.",
 };
 
 const DEFAULT_FAILURE_MESSAGE =

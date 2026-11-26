@@ -222,40 +222,45 @@ export function AddSourceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto border-border bg-popover text-foreground sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
-            <FileUp className="h-4 w-4 text-primary" />
-            Add a source
+      <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-[2rem] border-white/10 bg-[#1f1e1c] p-6 text-foreground sm:max-w-[800px] sm:p-8">
+        <DialogHeader className="-mx-6 -mt-6 border-b border-white/10 px-6 py-5 sm:-mx-8 sm:-mt-8 sm:px-8">
+          <DialogTitle className="flex items-center gap-3 text-lg font-semibold">
+            <FileUp className="h-5 w-5 text-[#e65100]" />
+            Ingest Source to Workspace
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
             Add material to this workspace for grounded conversations.
           </DialogDescription>
         </DialogHeader>
 
-        <div
-          role="tablist"
-          aria-label="Source type"
-          className="grid grid-cols-5 gap-1 rounded-xl border border-border bg-muted/40 p-1"
-        >
-          {SOURCE_OPTIONS.map(({ type, label, icon: Icon }) => (
-            <button
-              key={type}
-              type="button"
-              role="tab"
-              aria-selected={sourceType === type}
-              disabled={mutation.isPending}
-              onClick={() => selectSourceType(type)}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                sourceType === type
-                  ? "bg-background text-foreground ring-1 ring-border"
-                  : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4 text-primary" />
-              <span>{label}</span>
-            </button>
-          ))}
+        <div className="space-y-3">
+          <p className="px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Choose source type
+          </p>
+          <div
+            role="tablist"
+            aria-label="Source type"
+            className="grid grid-cols-5 gap-1 rounded-2xl border border-white/10 bg-[#1b1a19] p-2"
+          >
+            {SOURCE_OPTIONS.map(({ type, label, icon: Icon }) => (
+              <button
+                key={type}
+                type="button"
+                role="tab"
+                aria-selected={sourceType === type}
+                disabled={mutation.isPending}
+                onClick={() => selectSourceType(type)}
+                className={`flex min-h-16 flex-col items-center justify-center gap-2 rounded-xl border border-transparent px-1 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                  sourceType === type
+                    ? "border-[#e65100]/25 bg-white/[0.03] text-foreground"
+                    : "text-muted-foreground hover:bg-white/[0.03] hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5 text-[#e65100]" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -312,7 +317,10 @@ export function AddSourceDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="source-file">
+                <Label
+                  htmlFor="source-file"
+                  className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                >
                   {sourceType === "pdf"
                     ? "Choose a PDF"
                     : `Upload a ${sourceType === "markdown" ? "Markdown" : "text"} file (optional)`}
@@ -330,12 +338,12 @@ export function AddSourceDialog({
                   htmlFor="source-file"
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleFileDrop}
-                  className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center transition-colors hover:border-primary/40 hover:bg-muted/50 focus-within:ring-2 focus-within:ring-ring/40"
+                  className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-white/10 bg-[#242322] px-4 py-8 text-center transition-colors hover:border-[#e65100]/50 hover:bg-white/[0.03] focus-within:ring-2 focus-within:ring-[#e65100]/40"
                 >
-                  <UploadCloud className="mb-3 h-8 w-8 text-muted-foreground" />
+                  <UploadCloud className="mb-4 h-10 w-10 text-muted-foreground" />
                   <p className="text-sm font-medium">
                     Drag and drop or{" "}
-                    <span className="text-primary">browse your file</span>
+                    <span className="text-[#e65100]">browse your file</span>
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {sourceType === "pdf"

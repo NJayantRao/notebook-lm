@@ -7,7 +7,13 @@ import type { ArtifactContent } from "@/lib/artifact-types";
 
 type RoadmapContent = Extract<ArtifactContent, { kind: "roadmap" }>;
 
-export function RoadmapView({ content }: { content: RoadmapContent }) {
+export function RoadmapView({
+  content,
+  workspaceId,
+}: {
+  content: RoadmapContent;
+  workspaceId: string;
+}) {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 py-8">
       <header className="space-y-2 border-b border-border pb-4">
@@ -49,12 +55,8 @@ export function RoadmapView({ content }: { content: RoadmapContent }) {
             </p>
             <div className="mt-3">
               <CitationChip
-                label={step.citation.label}
-                title={step.citation.title}
-                url={step.citation.url}
-                page={step.citation.page}
-                startSeconds={step.citation.startSeconds}
-                excerpt={`${step.citation.label} · source chunk ${step.citation.chunkIndex}`}
+                citation={step.citation}
+                workspaceId={workspaceId}
               />
             </div>
           </li>

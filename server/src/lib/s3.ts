@@ -114,7 +114,8 @@ const artifactKey = (
 export const getSignedArtifactUrl = async (
   key: string,
   expiresIn = ENV.AUDIO_URL_TTL_SECONDS,
-  contentType = "audio/mpeg"
+  contentType = "audio/mpeg",
+  responseContentDisposition?: string
 ): Promise<string> => {
   try {
     return await timed("storage.artifact.presign", { provider: PROVIDER }, () =>
@@ -124,6 +125,9 @@ export const getSignedArtifactUrl = async (
           Bucket: ENV.S3_BUCKET,
           Key: key,
           ResponseContentType: contentType,
+          ...(responseContentDisposition
+            ? { ResponseContentDisposition: responseContentDisposition }
+            : {}),
         }),
         { expiresIn }
       )

@@ -36,6 +36,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -50,6 +51,7 @@ import { MemoriesDialog } from "@/components/workspace/memories-dialog";
 import { useAuthSession } from "@/hooks/use-auth";
 import { useArtifacts } from "@/hooks/use-artifacts";
 import { getErrorMessage } from "@/lib/api";
+import { cleanTitle } from "@/lib/citation-label";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import type { ConversationListItem, SourceListItem, WorkspaceListItem } from "@/lib/types";
@@ -164,22 +166,24 @@ function WorkspaceSidebar({
                 <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-                {workspaces.map((workspace) => (
-                  <DropdownMenuItem
-                    key={workspace.id}
-                    onSelect={() => {
-                      router.push(`/dashboard/workspaces/${workspace.id}`);
-                      onNavigate?.();
-                    }}
-                  >
-                    <BookOpen />
-                    <span className="truncate">{workspace.title}</span>
-                  </DropdownMenuItem>
-                ))}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+                  {workspaces.map((workspace) => (
+                    <DropdownMenuItem
+                      key={workspace.id}
+                      onClick={() => {
+                        router.push(`/dashboard/workspaces/${workspace.id}`);
+                        onNavigate?.();
+                      }}
+                    >
+                      <BookOpen />
+                      <span className="truncate">{workspace.title}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={() => {
+                  onClick={() => {
                     router.push("/dashboard");
                     onNavigate?.();
                   }}
@@ -205,20 +209,22 @@ function WorkspaceSidebar({
                 <BookOpen className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-                {workspaces.map((workspace) => (
-                  <DropdownMenuItem
-                    key={workspace.id}
-                    onSelect={() =>
-                      router.push(`/dashboard/workspaces/${workspace.id}`)
-                    }
-                  >
-                    <BookOpen />
-                    <span className="truncate">{workspace.title}</span>
-                  </DropdownMenuItem>
-                ))}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+                  {workspaces.map((workspace) => (
+                    <DropdownMenuItem
+                      key={workspace.id}
+                      onClick={() =>
+                        router.push(`/dashboard/workspaces/${workspace.id}`)
+                      }
+                    >
+                      <BookOpen />
+                      <span className="truncate">{workspace.title}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => router.push("/dashboard")}>
+                <DropdownMenuItem onClick={() => router.push("/dashboard")}>
                   <LayoutDashboard />
                   Back to dashboard
                 </DropdownMenuItem>
@@ -407,24 +413,26 @@ function WorkspaceSidebar({
             )}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top" className="w-56">
-            <DropdownMenuLabel>Preferences</DropdownMenuLabel>
-            <DropdownMenuItem
-              onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            >
-              {resolvedTheme === "dark" ? <Sun /> : <Moon />}
-              Switch to {resolvedTheme === "dark" ? "light" : "dark"} theme
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Preferences</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              >
+                {resolvedTheme === "dark" ? <Sun /> : <Moon />}
+                Switch to {resolvedTheme === "dark" ? "light" : "dark"} theme
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => router.push("/terms")}>
+            <DropdownMenuItem onClick={() => router.push("/terms")}>
               Terms
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => router.push("/privacy")}>
+            <DropdownMenuItem onClick={() => router.push("/privacy")}>
               Privacy
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
               disabled={loggingOut}
-              onSelect={() => void logout()}
+              onClick={() => void logout()}
             >
               {loggingOut ? <LoaderCircle className="animate-spin" /> : <LogOut />}
               Log out
@@ -515,7 +523,7 @@ export function WorkspaceShell({
   };
 
   return (
-    <div className="flex h-dvh min-h-0 overflow-hidden bg-background text-foreground">
+    <div className="notebook-theme flex h-dvh min-h-0 overflow-hidden bg-background text-foreground">
       <div className="hidden shrink-0 md:block">
         <WorkspaceSidebar
           {...sidebarProps}
@@ -619,14 +627,14 @@ export function WorkspaceShell({
               {sources.map((source) => (
                 <CommandItem
                   key={source.id}
-                  value={`source ${source.title}`}
+                  value={`source ${cleanTitle(source.title)}`}
                   onSelect={() => {
                     setSearchOpen(false);
                     router.push(`${currentPath}/sources`);
                   }}
                 >
                   <FileText />
-                  <span className="truncate">{source.title}</span>
+                  <span className="truncate">{cleanTitle(source.title)}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

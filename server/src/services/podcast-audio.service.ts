@@ -165,9 +165,9 @@ const synthesizePcm = async (
   segment: PodcastSegment,
   meta: { workspaceId: string; artifactId: string; partIndex: number }
 ): Promise<Buffer> => {
-  const model = ENV.TTS_MODEL?.trim() || "gemini-3.8-flash-tts";
-  const voiceA = ENV.TTS_VOICE_HOST_A?.trim() || "Kore";
-  const voiceB = ENV.TTS_VOICE_HOST_B?.trim() || "Orbit";
+  const model = ENV.TTS_MODEL?.trim() || "gemini-3.8-flash-lite-tts";
+  const voiceA = ENV.TTS_VOICE_HOST_A?.trim() || "Charon";
+  const voiceB = ENV.TTS_VOICE_HOST_B?.trim() || "Aoede";
   for (let attempt = 1; attempt <= TTS_ATTEMPTS; attempt += 1) {
     try {
       const interaction = await timed(

@@ -251,6 +251,39 @@ const getArtifact = async (
   return toView(record, userId);
 };
 
+const getPodcastAudioDownloadUrl = async (
+  userId: string,
+  workspaceId: string,
+  artifactId: string
+): Promise<string> => {
+  const record = await requireArtifact(userId, workspaceId, artifactId);
+  if (record.type !== "podcast" || !record.audioKey) {
+    throw new NotFoundError(
+      "Podcast audio is not available.",
+      "PODCAST_AUDIO_NOT_FOUND"
+    );
+  }
+
+  const extension =
+    record.audioMeta?.mimeType === "audio/wav" ? "wav" : "mp3";
+  const safeTitle =
+    record.title
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/gu, "")
+      .replace(/[^a-zA-Z0-9_-]+/gu, "-")
+      .replace(/^-+|-+$/gu, "")
+      .slice(0, 100) || "podcast";
+  const filename = `${safeTitle}.${extension}`;
+  const disposition = `attachment; filename="${filename}"`;
+
+  return getSignedArtifactUrl(
+    record.audioKey,
+    ENV.AUDIO_URL_TTL_SECONDS,
+    record.audioMeta?.mimeType ?? "audio/mpeg",
+    disposition
+  );
+};
+
 const deleteArtifact = async (
   userId: string,
   workspaceId: string,
@@ -543,6 +576,7 @@ export default {
   createArtifact,
   listArtifacts,
   getArtifact,
+  getPodcastAudioDownloadUrl,
   deleteArtifact,
   retryArtifact,
   submitQuizAttempt,

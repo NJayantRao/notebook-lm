@@ -26,16 +26,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { WorkspaceListItem } from "@/lib/types";
 import { getErrorMessage } from "@/lib/api";
-import {
-  createWorkspace,
-  deleteWorkspace,
-} from "@/services/workspace.service";
+import { createWorkspace, deleteWorkspace } from "@/services/workspace.service";
 
 const CARD_CLASS =
-  "relative flex min-h-52 flex-col rounded-2xl border p-4";
+  "relative flex min-h-40 flex-col rounded-xl border p-4";
 
 const LABEL_CLASS =
-  "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em]";
+  "flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em]";
 
 function formatDate(value: string) {
   try {
@@ -78,9 +75,9 @@ function NewWorkspaceCard() {
       onSubmit={handleSubmit}
       className={`${CARD_CLASS} justify-between border-dashed border-foreground/15 bg-card/40`}
     >
-      <div className="space-y-2">
+      <div className="space-y-3">
         <p className={`${LABEL_CLASS} text-foreground/80`}>
-          <span className="h-2 w-2 rounded-full bg-foreground/60" />
+          <span className="size-1.5 rounded-full bg-foreground/60" />
           New workspace
         </p>
         <input
@@ -90,10 +87,10 @@ function NewWorkspaceCard() {
           aria-label="Workspace name"
           maxLength={120}
           disabled={mutation.isPending}
-          className="h-10 w-full rounded-lg border border-border bg-background/60 px-3 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/30 disabled:opacity-60"
+          className="h-10 w-full rounded-lg border border-border bg-background/60 px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/30 disabled:opacity-60"
         />
         {error && (
-          <p role="alert" className="px-2 text-sm text-red-400">
+          <p role="alert" className="px-1 text-xs text-destructive">
             {error}
           </p>
         )}
@@ -102,10 +99,10 @@ function NewWorkspaceCard() {
       <button
         type="submit"
         disabled={!trimmed || mutation.isPending}
-        className={`mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-background transition-colors disabled:cursor-not-allowed ${
+        className={`mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium text-primary-foreground transition-colors disabled:cursor-not-allowed ${
           trimmed
-            ? "bg-foreground hover:bg-foreground/90"
-            : "bg-muted-foreground/60"
+            ? "bg-primary hover:bg-primary/90"
+            : "bg-muted text-muted-foreground"
         }`}
       >
         {mutation.isPending ? (
@@ -138,12 +135,12 @@ function WorkspaceCardItem({ workspace }: { workspace: WorkspaceListItem }) {
   return (
     <>
       <div
-        className={`${CARD_CLASS} group border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/25 focus-within:ring-2 focus-within:ring-ring`}
+        className={`${CARD_CLASS} group border-border bg-card transition-colors duration-150 hover:border-foreground/25 focus-within:ring-2 focus-within:ring-ring`}
       >
         <Link
           href={`/dashboard/workspaces/${workspace.id}`}
           aria-label={`Open ${workspace.title}`}
-          className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none"
+          className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none"
         />
 
         <button
@@ -155,39 +152,39 @@ function WorkspaceCardItem({ workspace }: { workspace: WorkspaceListItem }) {
             setActionError(null);
             setConfirmDelete(true);
           }}
-          className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+          className="absolute right-2 top-2 z-20 flex size-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground opacity-0 transition-colors hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="size-3.5" />
         </button>
 
         <div className="pointer-events-none relative z-10 flex h-full flex-col">
           <div className="flex items-start gap-3 pr-10">
             <div className="relative shrink-0">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground">
+              <span className="flex size-10 items-center justify-center rounded-xl border border-border bg-background text-foreground">
                 {workspace.icon ? (
-                  <span className="text-xl leading-none">{workspace.icon}</span>
+                  <span className="text-base leading-none">{workspace.icon}</span>
                 ) : (
-                  <BookOpen className="h-6 w-6" />
+                  <BookOpen className="size-4" />
                 )}
               </span>
-              <span className="absolute -bottom-1 -right-2 flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-background shadow-md transition-transform duration-300 group-hover:translate-x-0.5">
-                <ArrowRight className="h-3.5 w-3.5" />
+              <span className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground transition-transform duration-150 group-hover:translate-x-0.5">
+                <ArrowRight className="size-3.5" />
               </span>
             </div>
 
             <div className="min-w-0 flex-1 pt-1">
-              <p className={`${LABEL_CLASS} text-[#d9480f]`}>
-                <span className="h-2 w-2 rounded-full bg-[#d9480f]" />
+              <p className={`${LABEL_CLASS} text-brand`}>
+                <span className="size-1.5 rounded-full bg-brand" />
                 {count} {count === 1 ? "Document" : "Documents"}
               </p>
-              <h3 className="mt-1.5 line-clamp-3 break-words text-lg font-medium leading-snug text-foreground">
+              <h3 className="mt-1 line-clamp-3 break-words text-base font-medium leading-snug text-foreground">
                 {workspace.title}
               </h3>
             </div>
           </div>
 
-          <div className="mt-auto flex items-center gap-2 border-t border-border pt-3 text-sm font-medium text-foreground/75">
-            <Calendar className="h-3.5 w-3.5" />
+          <div className="mt-auto flex items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+            <Calendar className="size-3.5" />
             <span>{formatDate(workspace.createdAt)}</span>
           </div>
         </div>
@@ -207,7 +204,7 @@ function WorkspaceCardItem({ workspace }: { workspace: WorkspaceListItem }) {
               removed. This cannot be undone.
             </AlertDialogDescription>
             {actionError && (
-              <p role="alert" className="text-sm text-red-400">
+              <p role="alert" className="text-xs text-destructive">
                 {actionError}
               </p>
             )}
@@ -217,7 +214,7 @@ function WorkspaceCardItem({ workspace }: { workspace: WorkspaceListItem }) {
             <AlertDialogAction
               disabled={deleteMutation.isPending}
               onClick={() => deleteMutation.mutate()}
-              className="bg-red-600 text-white hover:bg-red-700"
+              variant="destructive"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
@@ -247,29 +244,29 @@ export function WorkspaceGrid({
 
   return (
     <section>
-      <div className="flex flex-col gap-3 border-b border-border pb-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 border-b border-border pb-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             My Research Notebooks
           </h1>
-          <p className="mt-1.5 max-w-2xl text-sm font-normal leading-relaxed text-muted-foreground sm:text-base">
+          <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
             Create a workspace or select a research notebook below to begin
             querying your ingested sources.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full sm:w-64">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative w-full sm:w-80">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search notebooks..."
               aria-label="Search notebooks"
-              className="h-10 w-full rounded-lg border border-border bg-card pl-10 pr-3 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="h-10 w-full rounded-lg border border-border bg-card pl-10 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30"
             />
           </div>
-          <span className="inline-flex h-7 items-center rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground">
+          <span className="inline-flex h-8 items-center whitespace-nowrap rounded-lg border border-border bg-card px-3 text-xs font-medium text-foreground">
             {workspaces.length} Active Workspaces
           </span>
         </div>
@@ -279,9 +276,9 @@ export function WorkspaceGrid({
         {error ? (
           <div
             role="alert"
-            className="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-400"
+            className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
           >
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
             <div>
               <p className="font-medium">Unable to load workspaces</p>
               <p className="mt-1 opacity-80">{getErrorMessage(error)}</p>
@@ -297,10 +294,10 @@ export function WorkspaceGrid({
                     className={`${CARD_CLASS} border-border bg-card`}
                   >
                     <div className="flex items-start gap-3">
-                      <Skeleton className="h-12 w-12 rounded-xl" />
+                      <Skeleton className="size-10 rounded-xl" />
                       <div className="flex-1 space-y-2 pt-1">
                         <Skeleton className="h-3 w-24" />
-                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-5 w-3/4" />
                       </div>
                     </div>
                     <Skeleton className="mt-auto h-4 w-28" />

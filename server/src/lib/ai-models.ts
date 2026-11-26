@@ -1,4 +1,3 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
@@ -6,7 +5,7 @@ import type { LanguageModel } from "ai";
 import { ENV } from "../config/env.js";
 import { ServiceUnavailableError } from "../utils/api-error.js";
 
-export type ModelProvider = "openai" | "google" | "anthropic";
+export type ModelProvider = "openai" | "google";
 export type ModelTask = "chat" | "artifactFast" | "artifactStrong";
 export type ModelSpec = {
   provider: ModelProvider;
@@ -21,7 +20,7 @@ export type ModelSpec = {
 export const DEFAULT_MODEL_SPECS: Record<ModelTask, ModelSpec> = {
   chat: { provider: "openai", model: "gpt-6-luna", reasoning: true },
   artifactFast: { provider: "openai", model: "gpt-6-luna", reasoning: true },
-  artifactStrong: { provider: "openai", model: "gpt-6.2-sol", reasoning: true },
+  artifactStrong: { provider: "openai", model: "gpt-6-luna", reasoning: true },
 };
 
 const TASK_ENV: Record<ModelTask, keyof typeof ENV | undefined> = {
@@ -33,7 +32,6 @@ const TASK_ENV: Record<ModelTask, keyof typeof ENV | undefined> = {
 const PROVIDER_KEY: Record<ModelProvider, string | undefined> = {
   openai: ENV.OPENAI_API_KEY,
   google: ENV.GOOGLE_GENERATIVE_AI_API_KEY,
-  anthropic: ENV.ANTHROPIC_API_KEY,
 };
 
 const PROVIDER_ERROR: Record<ModelProvider, { message: string; code: string }> = {
@@ -45,13 +43,9 @@ const PROVIDER_ERROR: Record<ModelProvider, { message: string; code: string }> =
     message: "Google Generative AI is not configured.",
     code: "GOOGLE_NOT_CONFIGURED",
   },
-  anthropic: {
-    message: "Anthropic is not configured.",
-    code: "ANTHROPIC_NOT_CONFIGURED",
-  },
 };
 
-const PROVIDERS: ModelProvider[] = ["openai", "google", "anthropic"];
+const PROVIDERS: ModelProvider[] = ["openai", "google"];
 
 /**
  * Verified against @ai-sdk/openai docs/03-openai.mdx, "Request Capabilities":
@@ -127,8 +121,6 @@ export const resolveModel = (task: ModelTask): LanguageModel => {
       return createOpenAI({ apiKey })(model);
     case "google":
       return createGoogleGenerativeAI({ apiKey })(model);
-    case "anthropic":
-      return createAnthropic({ apiKey })(model);
   }
 };
 

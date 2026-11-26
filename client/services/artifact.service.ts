@@ -45,6 +45,16 @@ export async function getArtifact(
   return unwrap(res.data.data, "Failed to load artifact");
 }
 
+export async function getPodcastAudioDownloadUrl(
+  workspaceId: string,
+  artifactId: string
+): Promise<string> {
+  const res = await api.get<ApiEnvelope<string>>(
+    `${base(workspaceId)}/${artifactId}/audio/download`
+  );
+  return unwrap(res.data.data, "Failed to create podcast download link");
+}
+
 export async function deleteArtifact(
   workspaceId: string,
   artifactId: string

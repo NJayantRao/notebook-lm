@@ -58,9 +58,11 @@ function layoutNodes(nodes: Node[], edges: Edge[]): Node[] {
 
 export function MindMapView({
   content,
+  workspaceId,
   fullPage = false,
 }: {
   content: MindMapContent;
+  workspaceId: string;
   fullPage?: boolean;
 }) {
   const [textView, setTextView] = useState(false);
@@ -253,11 +255,8 @@ export function MindMapView({
           )}
           <div className="mt-2">
             <CitationChip
-              label={selected.citation.label}
-              title={selected.citation.title}
-              url={selected.citation.url}
-              page={selected.citation.page}
-              startSeconds={selected.citation.startSeconds}
+              citation={selected.citation}
+              workspaceId={workspaceId}
             />
           </div>
         </section>
